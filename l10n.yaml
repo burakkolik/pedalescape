@@ -1,0 +1,10 @@
+# Localization configuration (Flutter gen-l10n).
+# Source of truth: lib/core/localization/arb/app_en.arb
+# See docs/LOCALIZATION.md for how to add or maintain a language.
+arb-dir: lib/core/localization/arb
+template-arb-file: app_en.arb
+output-dir: lib/core/localization/generated
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false
+untranslated-messages-file: build/untranslated_messages.json
