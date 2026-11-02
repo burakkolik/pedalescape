@@ -60,17 +60,17 @@ class WorldObject {
 /// Nothing is allocated after construction.
 class Particles {
   Particles(this.capacity)
-      : x = Float32List(capacity),
-        y = Float32List(capacity),
-        vx = Float32List(capacity),
-        vy = Float32List(capacity),
-        life = Float32List(capacity),
-        maxLife = Float32List(capacity),
-        size = Float32List(capacity),
-        grow = Float32List(capacity),
-        drag = Float32List(capacity),
-        gravity = Float32List(capacity),
-        color = Int32List(capacity);
+    : x = Float32List(capacity),
+      y = Float32List(capacity),
+      vx = Float32List(capacity),
+      vy = Float32List(capacity),
+      life = Float32List(capacity),
+      maxLife = Float32List(capacity),
+      size = Float32List(capacity),
+      grow = Float32List(capacity),
+      drag = Float32List(capacity),
+      gravity = Float32List(capacity),
+      color = Int32List(capacity);
 
   final int capacity;
   final Float32List x, y, vx, vy, life, maxLife, size, grow, drag, gravity;

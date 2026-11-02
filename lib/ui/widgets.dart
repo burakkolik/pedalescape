@@ -7,12 +7,12 @@ const kAccent = Color(0xffff5a36);
 const kPanel = Color(0xcc101425);
 
 TextStyle titleStyle(double size, {Color color = Colors.white}) => TextStyle(
-      fontSize: size,
-      fontWeight: FontWeight.w900,
-      color: color,
-      letterSpacing: 1.5,
-      shadows: const [Shadow(color: Color(0x88000000), blurRadius: 8, offset: Offset(0, 3))],
-    );
+  fontSize: size,
+  fontWeight: FontWeight.w900,
+  color: color,
+  letterSpacing: 1.5,
+  shadows: const [Shadow(color: Color(0x88000000), blurRadius: 8, offset: Offset(0, 3))],
+);
 
 TextStyle bodyStyle(double size, {Color color = Colors.white70, FontWeight weight = FontWeight.w600}) =>
     TextStyle(fontSize: size, color: color, fontWeight: weight);
@@ -123,11 +123,14 @@ class CoinPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 2),
         border: Border.all(color: const Color(0x44ffc62a)),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        CoinIcon(size: size * 1.1),
-        SizedBox(width: size * 0.35),
-        Text('$value', style: titleStyle(size, color: kGold)),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CoinIcon(size: size * 1.1),
+          SizedBox(width: size * 0.35),
+          Text('$value', style: titleStyle(size, color: kGold)),
+        ],
+      ),
     );
   }
 }

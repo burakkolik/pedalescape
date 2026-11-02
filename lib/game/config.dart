@@ -15,7 +15,7 @@ class K {
   static const double rumbleW = 0.55;
 
   /// Camera height above the ground under the player.
-  static const double camHeight = 3.3;
+  static const double camHeight = 4.4;
 
   /// Distance from camera to player along the track.
   static const double playerDist = 4.4;

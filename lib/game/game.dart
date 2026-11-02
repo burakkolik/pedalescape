@@ -7,19 +7,7 @@ import 'util.dart';
 
 enum Phase { menu, playing, crashing, over, paused }
 
-enum GameEvent {
-  coin,
-  powerUp,
-  smallHit,
-  shieldBreak,
-  smash,
-  crash,
-  caught,
-  jump,
-  land,
-  lane,
-  nearMiss,
-}
+enum GameEvent { coin, powerUp, smallHit, shieldBreak, smash, crash, caught, jump, land, lane, nearMiss }
 
 enum EndReason { crash, storm }
 
@@ -31,8 +19,7 @@ class Game {
   }
 
   final Road road = Road();
-  final List<WorldObject> objects =
-      List<WorldObject>.generate(K.maxObjects, (_) => WorldObject(), growable: false);
+  final List<WorldObject> objects = List<WorldObject>.generate(K.maxObjects, (_) => WorldObject(), growable: false);
 
   /// Smoke / dust (normal blending) and sparks (additive blending).
   final Particles smoke = Particles(110);
@@ -590,9 +577,18 @@ class Game {
     for (var i = 0; i < n; i++) {
       final a = _rng.nextDouble() * math.pi * 2;
       final v = power * (0.3 + _rng.nextDouble() * 0.7) * s;
-      sparks.spawn(px, py, math.cos(a) * v, math.sin(a) * v - 120 * s, life * (0.6 + _rng.nextDouble() * 0.6),
-          size * s * (0.6 + _rng.nextDouble() * 0.8), color,
-          dragPerS: 2.2, grav: 500 * s, growPerS: -size * s);
+      sparks.spawn(
+        px,
+        py,
+        math.cos(a) * v,
+        math.sin(a) * v - 120 * s,
+        life * (0.6 + _rng.nextDouble() * 0.6),
+        size * s * (0.6 + _rng.nextDouble() * 0.8),
+        color,
+        dragPerS: 2.2,
+        grav: 500 * s,
+        growPerS: -size * s,
+      );
     }
   }
 
@@ -606,9 +602,17 @@ class Game {
       _dustAcc -= 1;
       final wx = playerScreenX + (_rng.nextDouble() - 0.5) * 18 * s;
       final wy = playerScreenY - 2 * s;
-      smoke.spawn(wx, wy, (_rng.nextDouble() - 0.5) * 80 * s, 40 * s + _rng.nextDouble() * 50 * s,
-          0.5 + _rng.nextDouble() * 0.4, 7 * s, 0x55cfc6b8,
-          growPerS: 34 * s, dragPerS: 1.5);
+      smoke.spawn(
+        wx,
+        wy,
+        (_rng.nextDouble() - 0.5) * 80 * s,
+        40 * s + _rng.nextDouble() * 50 * s,
+        0.5 + _rng.nextDouble() * 0.4,
+        7 * s,
+        0x55cfc6b8,
+        growPerS: 34 * s,
+        dragPerS: 1.5,
+      );
     }
   }
 
@@ -616,9 +620,17 @@ class Game {
     final s = playerPxPerM / 100;
     for (var i = 0; i < 14; i++) {
       final dir = i.isEven ? 1 : -1;
-      smoke.spawn(playerScreenX + dir * _rng.nextDouble() * 20 * s, playerScreenY,
-          dir * (80 + _rng.nextDouble() * 160) * s, -_rng.nextDouble() * 40 * s, 0.6, 9 * s, 0x66d8d0c4,
-          growPerS: 40 * s, dragPerS: 2.5);
+      smoke.spawn(
+        playerScreenX + dir * _rng.nextDouble() * 20 * s,
+        playerScreenY,
+        dir * (80 + _rng.nextDouble() * 160) * s,
+        -_rng.nextDouble() * 40 * s,
+        0.6,
+        9 * s,
+        0x66d8d0c4,
+        growPerS: 40 * s,
+        dragPerS: 2.5,
+      );
     }
   }
 
@@ -627,17 +639,33 @@ class Game {
     for (var i = 0; i < 24; i++) {
       final a = -math.pi * (0.1 + 0.8 * _rng.nextDouble());
       final v = (220 + _rng.nextDouble() * 260) * s;
-      sparks.spawn(playerScreenX, playerScreenY, math.cos(a) * v, math.sin(a) * v, 0.6, 4.5 * s, 0xcc9fd8ff,
-          grav: 900 * s, dragPerS: 0.8);
+      sparks.spawn(
+        playerScreenX,
+        playerScreenY,
+        math.cos(a) * v,
+        math.sin(a) * v,
+        0.6,
+        4.5 * s,
+        0xcc9fd8ff,
+        grav: 900 * s,
+        dragPerS: 0.8,
+      );
     }
   }
 
   void _turboTrail(double dt) {
     final s = playerPxPerM / 100;
     for (var i = 0; i < 2; i++) {
-      sparks.spawn(playerScreenX + (_rng.nextDouble() - 0.5) * 30 * s, playerScreenY - 40 * s,
-          (_rng.nextDouble() - 0.5) * 60 * s, 260 * s, 0.35, 8 * s, 0xffff9a30,
-          growPerS: -14 * s);
+      sparks.spawn(
+        playerScreenX + (_rng.nextDouble() - 0.5) * 30 * s,
+        playerScreenY - 40 * s,
+        (_rng.nextDouble() - 0.5) * 60 * s,
+        260 * s,
+        0.35,
+        8 * s,
+        0xffff9a30,
+        growPerS: -14 * s,
+      );
     }
   }
 

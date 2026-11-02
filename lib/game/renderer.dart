@@ -16,10 +16,7 @@ import 'util.dart';
 
 /// Batches sprites for a single `drawRawAtlas` call. Fixed capacity.
 class _Batch {
-  _Batch(this.cap)
-      : rst = Float32List(cap * 4),
-        rect = Float32List(cap * 4),
-        col = Int32List(cap);
+  _Batch(this.cap) : rst = Float32List(cap * 4), rect = Float32List(cap * 4), col = Int32List(cap);
 
   final int cap;
   final Float32List rst;
@@ -30,8 +27,16 @@ class _Batch {
   /// Adds sprite [id] with its anchor at screen ([x],[y]). [scale] is screen
   /// pixels per atlas pixel. [cropBottom] removes atlas pixels at the bottom
   /// (used to hide the parts of a sprite that are behind a hill crest).
-  void add(SpriteAtlas a, int id, double x, double y, double scale, int color,
-      {double rot = 0, double cropBottom = 0}) {
+  void add(
+    SpriteAtlas a,
+    int id,
+    double x,
+    double y,
+    double scale,
+    int color, {
+    double rot = 0,
+    double cropBottom = 0,
+  }) {
     if (n >= cap) return;
     final l = a.left[id], t = a.top[id], r = a.right[id];
     var b = a.bottom[id];
@@ -57,8 +62,15 @@ class _Batch {
 
   void draw(Canvas c, ui.Image img, Paint p) {
     if (n == 0) return;
-    c.drawRawAtlas(img, Float32List.sublistView(rst, 0, n * 4), Float32List.sublistView(rect, 0, n * 4),
-        Int32List.sublistView(col, 0, n), BlendMode.modulate, null, p);
+    c.drawRawAtlas(
+      img,
+      Float32List.sublistView(rst, 0, n * 4),
+      Float32List.sublistView(rect, 0, n * 4),
+      Int32List.sublistView(col, 0, n),
+      BlendMode.modulate,
+      null,
+      p,
+    );
     n = 0;
   }
 }
@@ -66,9 +78,9 @@ class _Batch {
 /// Growable-never vertex buffer for colored triangles.
 class _Mesh {
   _Mesh(int maxVerts, int maxIdx)
-      : pos = Float32List(maxVerts * 2),
-        col = Int32List(maxVerts),
-        idx = Uint16List(maxIdx);
+    : pos = Float32List(maxVerts * 2),
+      col = Int32List(maxVerts),
+      idx = Uint16List(maxIdx);
 
   final Float32List pos;
   final Int32List col;
@@ -84,7 +96,11 @@ class _Mesh {
   bool get full => v + 4 > col.length || i + 6 > idx.length;
 
   /// Quad with a bottom edge (y1, x1l..x1r, color c1) and top edge (y2, c2).
-  void quad(double x1l, double x1r, double y1, double x2l, double x2r, double y2, int c1, int c2) {
+  void quad(double x1l, double x1r, double y1, double x2l, double x2r, double y2, int c1, int c2) =>
+      quad4(x1l, x1r, y1, x2l, x2r, y2, c1, c1, c2, c2);
+
+  /// Quad with individual colors: bottom-left, bottom-right, top-right, top-left.
+  void quad4(double x1l, double x1r, double y1, double x2l, double x2r, double y2, int bl, int br, int tr, int tl) {
     if (full) return;
     final b = v;
     final p = v * 2;
@@ -96,10 +112,10 @@ class _Mesh {
     pos[p + 5] = y2;
     pos[p + 6] = x2l;
     pos[p + 7] = y2;
-    col[v] = c1;
-    col[v + 1] = c1;
-    col[v + 2] = c2;
-    col[v + 3] = c2;
+    col[v] = bl;
+    col[v + 1] = br;
+    col[v + 2] = tr;
+    col[v + 3] = tl;
     v += 4;
     idx[i] = b;
     idx[i + 1] = b + 1;
@@ -265,10 +281,24 @@ class GameRenderer {
     _shaderSize = size;
     final c = Offset(size.width / 2, size.height * 0.55);
     final r = size.longestSide * 0.75;
-    _vignette.shader = ui.Gradient.radial(c, r, const [Color(0x00000000), Color(0x00000000), Color(0xff000000)], const [0, 0.55, 1]);
-    _hurt.shader = ui.Gradient.radial(c, r, const [Color(0x00ff0000), Color(0x00ff0000), Color(0xffd01020)], const [0, 0.5, 1]);
-    _storm.shader = ui.Gradient.linear(const Offset(0, -0.1), const Offset(0, 1),
-        const [Color(0x00140a26), Color(0xbb140a26), Color(0xf2080410)], const [0, 0.4, 1]);
+    _vignette.shader = ui.Gradient.radial(
+      c,
+      r,
+      const [Color(0x00000000), Color(0x00000000), Color(0xff000000)],
+      const [0, 0.55, 1],
+    );
+    _hurt.shader = ui.Gradient.radial(
+      c,
+      r,
+      const [Color(0x00ff0000), Color(0x00ff0000), Color(0xffd01020)],
+      const [0, 0.5, 1],
+    );
+    _storm.shader = ui.Gradient.linear(
+      const Offset(0, -0.1),
+      const Offset(0, 1),
+      const [Color(0x00140a26), Color(0xbb140a26), Color(0xf2080410)],
+      const [0, 0.4, 1],
+    );
   }
 
   // ------------------------------------------------------------------ paint
@@ -282,7 +312,7 @@ class GameRenderer {
     _h = size.height;
     final turboAmt = clampD(g.turboT, 0, 1);
     _f = _w * 0.86 * (1 - 0.12 * turboAmt);
-    final playerTargetY = _h * 0.83;
+    final playerTargetY = _h * 0.84;
     _cy = math.max(_h * 0.22, playerTargetY - K.camHeight / K.playerDist * _w * 0.86);
     _nSeg = math.min(_maxSeg, quality.segments);
     g.smoke.limit = quality.particles;
@@ -474,8 +504,19 @@ class GameRenderer {
     }
   }
 
-  void _mountainLayer(_Mesh m, Float32List table, double period, double offset, double height, double baseY,
-      double bottomY, int topCol, int botCol, {int snowCol = 0, double snowFrom = 2}) {
+  void _mountainLayer(
+    _Mesh m,
+    Float32List table,
+    double period,
+    double offset,
+    double height,
+    double baseY,
+    double bottomY,
+    int topCol,
+    int botCol, {
+    int snowCol = 0,
+    double snowFrom = 2,
+  }) {
     final cols = quality.mountainColumns;
     final step = (_w + 40) / cols;
     var prevX = -20.0, prevY = 0.0;
@@ -489,7 +530,9 @@ class GameRenderer {
       final i1 = (i0 + 1) % table.length;
       final hn = lerpD(table[i0], table[i1], fi - fi.floorToDouble());
       final y = baseY - hn * height;
-      final c = snowCol != 0 && hn > snowFrom ? lerpColor(topCol, snowCol, clampD((hn - snowFrom) / (1 - snowFrom) * 1.6, 0, 1)) : topCol;
+      final c = snowCol != 0 && hn > snowFrom
+          ? lerpColor(topCol, snowCol, clampD((hn - snowFrom) / (1 - snowFrom) * 1.6, 0, 1))
+          : topCol;
       if (k > 0) {
         // Quad from previous column to this one: bottom edge at bottomY.
         if (m.full) return;
@@ -529,13 +572,41 @@ class GameRenderer {
     final fogC = pal.fog;
     final farTop = lerpColor(pal.mountainFar, fogC, 0.15);
     final snow = lerpColor(0xfff4f8ff, fogC, 0.25 + pal.night * 0.35);
-    _mountainLayer(m, _mFar, _w * 2.6, so * 0.12 + g.camX * 2, _w * 0.30, _cy + 1, _cy + _h * 0.03, farTop,
-        lerpColor(pal.mountainFar, fogC, 0.8),
-        snowCol: snow, snowFrom: 0.72);
-    _mountainLayer(m, _mMid, _w * 1.9, so * 0.22 + g.camX * 4, _w * 0.17, _cy + 2, _cy + _h * 0.05,
-        lerpColor(pal.mountainMid, fogC, 0.1), lerpColor(pal.mountainMid, fogC, 0.7));
-    _mountainLayer(m, _mNear, _w * 1.3, so * 0.38 + g.camX * 8, _w * 0.06, _cy + 3, _h + 50,
-        lerpColor(pal.hills, fogC, 0.25), lerpColor(pal.hills, fogC, 0.6));
+    _mountainLayer(
+      m,
+      _mFar,
+      _w * 2.6,
+      so * 0.12 + g.camX * 2,
+      _w * 0.30,
+      _cy + 1,
+      _cy + _h * 0.03,
+      farTop,
+      lerpColor(pal.mountainFar, fogC, 0.8),
+      snowCol: snow,
+      snowFrom: 0.72,
+    );
+    _mountainLayer(
+      m,
+      _mMid,
+      _w * 1.9,
+      so * 0.22 + g.camX * 4,
+      _w * 0.17,
+      _cy + 2,
+      _cy + _h * 0.05,
+      lerpColor(pal.mountainMid, fogC, 0.1),
+      lerpColor(pal.mountainMid, fogC, 0.7),
+    );
+    _mountainLayer(
+      m,
+      _mNear,
+      _w * 1.3,
+      so * 0.38 + g.camX * 8,
+      _w * 0.06,
+      _cy + 3,
+      _h + 50,
+      lerpColor(pal.hills, fogC, 0.25),
+      lerpColor(pal.hills, fogC, 0.6),
+    );
     m.draw(canvas, _meshPaint);
   }
 
@@ -596,14 +667,17 @@ class GameRenderer {
     final night = pal.night;
     if (night < 0.2 || g.phase == Phase.crashing) return;
     final m = _fx..reset();
-    if (!_projectZ(g.playerZ + 1.2, g.x, 0, g)) return;
+    if (!_projectZ(g.playerZ + 0.8, g.x, 0, g)) return;
     final nx = _ox, ny = _oy, ns = _os;
-    if (!_projectZ(g.playerZ + 26, g.x + g.lean * 2, 0, g)) return;
+    if (!_projectZ(g.playerZ + 30, g.x + g.lean * 2, 0, g)) return;
     final fx = _ox, fy = _oy, fs = _os;
     final a = (night - 0.2) / 0.8;
-    final c1 = withAlpha(0xffffe6a8, 0.42 * a);
-    const c2 = 0x00ffe6a8;
-    m.quad(nx - 0.45 * ns, nx + 0.45 * ns, ny, fx - 3.2 * fs, fx + 3.2 * fs, fy, c1, c2);
+    final c1 = withAlpha(0xffffe6a8, 0.34 * a);
+    const c0 = 0x00ffe6a8;
+    // Bright core plus soft fringes on both sides fading to nothing.
+    m.quad(nx - 0.35 * ns, nx + 0.35 * ns, ny, fx - 2.2 * fs, fx + 2.2 * fs, fy, c1, c0);
+    m.quad4(nx - 0.9 * ns, nx - 0.35 * ns, ny, fx - 4.2 * fs, fx - 2.2 * fs, fy, c0, c1, c0, c0);
+    m.quad4(nx + 0.35 * ns, nx + 0.9 * ns, ny, fx + 2.2 * fs, fx + 4.2 * fs, fy, c1, c0, c0, c0);
     m.draw(canvas, _addMeshPaint);
   }
 
@@ -621,8 +695,18 @@ class GameRenderer {
     return fo * fo * (3 - 2 * fo);
   }
 
-  void _addWorld(_Batch b, SpriteAtlas a, int id, double sx, double sy, double pxPerM, double clip, int color,
-      {double rot = 0, double scaleMul = 1}) {
+  void _addWorld(
+    _Batch b,
+    SpriteAtlas a,
+    int id,
+    double sx,
+    double sy,
+    double pxPerM,
+    double clip,
+    int color, {
+    double rot = 0,
+    double scaleMul = 1,
+  }) {
     final sc = pxPerM / a.metersToSrc[id] * scaleMul;
     final hPx = a.height(id) * sc;
     if (hPx < 1.2) return;
@@ -732,7 +816,17 @@ class GameRenderer {
     final clip = o.knocked ? 1e9 : _oclip;
     switch (k) {
       case Kind.car:
-        _addWorld(b, a, Spr.car0 + (o.variant & 3), _ox, _oy + math.sin(g.time * 20 + o.phase) * 0.01 * _os, _os, clip, col, rot: o.rot);
+        _addWorld(
+          b,
+          a,
+          Spr.car0 + (o.variant & 3),
+          _ox,
+          _oy + math.sin(g.time * 20 + o.phase) * 0.01 * _os,
+          _os,
+          clip,
+          col,
+          rot: o.rot,
+        );
         _tailLights(g, a, 0.72, 0.74, fogT);
       case Kind.truck:
         _addWorld(b, a, Spr.truck, _ox, _oy, _os, clip, col, rot: o.rot);
@@ -769,7 +863,17 @@ class GameRenderer {
         };
         final ox = _ox, oy = _oy, os = _os;
         if (quality.glows && b == _far) {
-          _addWorld(_glow, a, Spr.glow, ox, oy, os, 1e9, withAlpha(0xffffffff, 0.55 * (1 - fogT)), scaleMul: 1.8 + math.sin(g.time * 5) * 0.2);
+          _addWorld(
+            _glow,
+            a,
+            Spr.glow,
+            ox,
+            oy,
+            os,
+            1e9,
+            withAlpha(0xffffffff, 0.55 * (1 - fogT)),
+            scaleMul: 1.8 + math.sin(g.time * 5) * 0.2,
+          );
         }
         _addWorld(b, a, id, ox, oy, os, clip, col);
     }

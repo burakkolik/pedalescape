@@ -88,14 +88,22 @@ class BikePainter {
     _torso.shader = ui.Gradient.linear(
       const Offset(0, -1.55),
       const Offset(0, -0.98),
-      [Color.lerp(s.jersey, const Color(0xffffffff), 0.28)!, s.jersey, Color.lerp(s.jersey, const Color(0xff000000), 0.35)!],
+      [
+        Color.lerp(s.jersey, const Color(0xffffffff), 0.28)!,
+        s.jersey,
+        Color.lerp(s.jersey, const Color(0xff000000), 0.35)!,
+      ],
       const [0, 0.4, 1],
     );
     _stripe.color = s.accent;
     _helmet.shader = ui.Gradient.radial(
       const Offset(-0.04, -1.7),
       0.2,
-      [Color.lerp(s.helmet, const Color(0xffffffff), 0.6)!, s.helmet, Color.lerp(s.helmet, const Color(0xff000000), 0.45)!],
+      [
+        Color.lerp(s.helmet, const Color(0xffffffff), 0.6)!,
+        s.helmet,
+        Color.lerp(s.helmet, const Color(0xff000000), 0.45)!,
+      ],
       const [0, 0.5, 1],
     );
     _shadow.shader = ui.Gradient.radial(Offset.zero, 1, const [Color(0x66000000), Color(0x00000000)]);
@@ -120,7 +128,8 @@ class BikePainter {
   }
 
   /// [pedal] crank angle, [duck] 0..1, [lean] radians, [night] 0..1.
-  void paint(Canvas c, {
+  void paint(
+    Canvas c, {
     required double pedal,
     required double duck,
     required double lean,
@@ -174,8 +183,14 @@ class BikePainter {
       c.drawLine(knee + Offset(side * 0.025, 0.02), ankle + Offset(side * 0.02, 0), _shinShade);
       c.drawLine(hip, knee, _thigh);
       // Shoe seen from behind.
-      c.drawRRect(RRect.fromLTRBR(footX - 0.055, footY - 0.08, footX + 0.055, footY + 0.02, const Radius.circular(0.035)), _shoe);
-      c.drawRRect(RRect.fromLTRBR(footX - 0.055, footY - 0.005, footX + 0.055, footY + 0.025, const Radius.circular(0.012)), _shoeSole);
+      c.drawRRect(
+        RRect.fromLTRBR(footX - 0.055, footY - 0.08, footX + 0.055, footY + 0.02, const Radius.circular(0.035)),
+        _shoe,
+      );
+      c.drawRRect(
+        RRect.fromLTRBR(footX - 0.055, footY - 0.005, footX + 0.055, footY + 0.025, const Radius.circular(0.012)),
+        _shoeSole,
+      );
     }
 
     // --- seat
@@ -221,7 +236,10 @@ class BikePainter {
     final hr = Rect.fromLTRB(-0.13, headY - 0.13, 0.13, headY + 0.07);
     c.drawOval(hr, _helmet);
     for (var i = -1; i <= 1; i++) {
-      c.drawRRect(RRect.fromLTRBR(i * 0.055 - 0.014, headY - 0.1, i * 0.055 + 0.014, headY + 0.0, const Radius.circular(0.01)), _vent);
+      c.drawRRect(
+        RRect.fromLTRBR(i * 0.055 - 0.014, headY - 0.1, i * 0.055 + 0.014, headY + 0.0, const Radius.circular(0.01)),
+        _vent,
+      );
     }
     c.drawRect(Rect.fromLTRB(-0.12, headY + 0.03, 0.12, headY + 0.055), _stripe);
 

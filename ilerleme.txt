@@ -1,4 +1,4 @@
-İLERLEME: %65
+İLERLEME: %88
 
 Pedal Escape: Bike Run — Geliştirme Planı ve İlerleme
 ======================================================
@@ -78,7 +78,7 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
     - Otomatik mod: FPS düşerse çizim mesafesi ve efektler azaltılır.
     - Çizim mesafesi (segment sayısı) kaliteye bağlı.
 
-16) [~] Bellek güvenliği
+16) [x] Bellek güvenliği
     - Paint ve Path nesneleri yeniden kullanılır, her karede yaratılmaz.
     - Tüm Ticker / Controller / Picture nesneleri dispose edilir.
     - Uygulama arka plana gidince oyun otomatik duraklar, döngü durur.
@@ -86,16 +86,38 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
 
 17) [x] Haptik (titreşim) geri bildirim — ayarlardan kapatılabilir.
 
-18) [ ] Android ayarları: dikey ekran kilidi, tam ekran (immersive),
-    uygulama adı "Pedal Escape", uygulama ikonu.
+18) [x] Android ayarları: dikey ekran kilidi, tam ekran (immersive),
+    uygulama adı "Pedal Escape". (Özel uygulama ikonu henüz yok -> madde 24.)
 
 19) [x] Mağaza: altınla bisiklet/forma renkleri satın alma.
 
 20) [x] Görevler / başarımlar (ör. "1000 m git", "50 altın topla").
 
-21) [ ] Testler (birim testleri: projeksiyon, çarpışma, havuz, skor) +
+21) [x] Testler (birim testleri: projeksiyon, çarpışma, havuz, skor) +
     flutter analyze temiz.
 
-22) [ ] Son cilalama: denge ayarları, geçiş animasyonları, README.
+22) [~] Son cilalama: denge ayarları, geçiş animasyonları, README.
 
 23) [ ] (İleride) Ses efektleri ve müzik.
+
+24) [ ] Özel uygulama ikonu ve açılış ekranı (şu an Flutter varsayılanı).
+
+25) [ ] Gerçek cihazda test: eski ve yeni telefonda FPS / RAM ölçümü,
+    oyun dengesi (hız, engel sıklığı, fırtına hızı) ince ayarı.
+
+------------------------------------------------------------
+YAPILANLARIN ÖZETİ (teknik)
+- Harici oyun motoru yok; tek paket: shared_preferences.
+- Yol: tek bir drawVertices çağrısı (tüm asfalt/çimen/bordür/şerit).
+- Tüm ağaç, araba, altın vb.: tek doku atlasından tek drawRawAtlas çağrısı.
+- Atlas açılışta prosedürel çizilir, ekran çözünürlüğüne ve kaliteye göre
+  boyutlanır (yaklaşık 2-6 MB doku). Resim dosyası yok.
+- Nesne havuzu (96), parçacık havuzları (sabit), Float32List tamponlar:
+  oyun boyunca bellek büyümez (testle doğrulandı: 2 dakikalık koşu).
+- Arka plana alınınca oyun duraklar ve çizim tamamen durur.
+- 120 Hz ekranlarda varsayılan 60 FPS sınırı (pil/ısı), ayarlardan açılabilir.
+- Otomatik kalite: FPS düşerse çizim mesafesi/efektler azaltılır.
+- Gün/gece döngüsü, sis, far ışığı, sokak lambası ışık havuzları, yağmur,
+  şimşek, fırtına duvarı, hız çizgileri, kalkan balonu, turbo alevi.
+- Testler: 6 test (yol, bellek/havuz, çarpışma, altın/görev, render, uygulama).
+- Release APK derlemesi doğrulandı.
