@@ -8,6 +8,7 @@ import 'bike_painter.dart';
 import 'config.dart';
 import 'entities.dart';
 import 'game.dart';
+import 'ground_texture.dart';
 import 'palette.dart';
 import 'quality.dart';
 import 'skins.dart';
@@ -75,14 +76,16 @@ class _Batch {
   }
 }
 
-/// Growable-never vertex buffer for colored triangles.
+/// Growable-never vertex buffer for colored (optionally textured) triangles.
 class _Mesh {
   _Mesh(int maxVerts, int maxIdx)
     : pos = Float32List(maxVerts * 2),
+      uv = Float32List(maxVerts * 2),
       col = Int32List(maxVerts),
       idx = Uint16List(maxIdx);
 
   final Float32List pos;
+  final Float32List uv;
   final Int32List col;
   final Uint16List idx;
   int v = 0;
@@ -100,22 +103,47 @@ class _Mesh {
       quad4(x1l, x1r, y1, x2l, x2r, y2, c1, c1, c2, c2);
 
   /// Quad with individual colors: bottom-left, bottom-right, top-right, top-left.
-  void quad4(double x1l, double x1r, double y1, double x2l, double x2r, double y2, int bl, int br, int tr, int tl) {
+  void quad4(double x1l, double x1r, double y1, double x2l, double x2r, double y2, int bl, int br, int tr, int tl) =>
+      quadP(x1l, y1, x1r, y1, x2r, y2, x2l, y2, bl, br, tr, tl);
+
+  /// Free-form quad a-b-c-d (counter or clockwise) with per-corner colors.
+  void quadP(
+    double ax,
+    double ay,
+    double bx,
+    double by,
+    double cx,
+    double cy,
+    double dx,
+    double dy,
+    int ca,
+    int cb,
+    int cc,
+    int cd,
+  ) {
     if (full) return;
     final b = v;
     final p = v * 2;
-    pos[p] = x1l;
-    pos[p + 1] = y1;
-    pos[p + 2] = x1r;
-    pos[p + 3] = y1;
-    pos[p + 4] = x2r;
-    pos[p + 5] = y2;
-    pos[p + 6] = x2l;
-    pos[p + 7] = y2;
-    col[v] = bl;
-    col[v + 1] = br;
-    col[v + 2] = tr;
-    col[v + 3] = tl;
+    pos[p] = ax;
+    pos[p + 1] = ay;
+    pos[p + 2] = bx;
+    pos[p + 3] = by;
+    pos[p + 4] = cx;
+    pos[p + 5] = cy;
+    pos[p + 6] = dx;
+    pos[p + 7] = dy;
+    uv[p] = 0;
+    uv[p + 1] = 0;
+    uv[p + 2] = 1;
+    uv[p + 3] = 0;
+    uv[p + 4] = 1;
+    uv[p + 5] = 1;
+    uv[p + 6] = 0;
+    uv[p + 7] = 1;
+    col[v] = ca;
+    col[v + 1] = cb;
+    col[v + 2] = cc;
+    col[v + 3] = cd;
     v += 4;
     idx[i] = b;
     idx[i + 1] = b + 1;
@@ -126,15 +154,31 @@ class _Mesh {
     i += 6;
   }
 
-  void draw(Canvas c, Paint p) {
+  /// Sets texture coordinates of the last quad added with [quad]/[quad4]
+  /// (bottom-left, bottom-right, top-right, top-left order).
+  void uvLast(double u1l, double u1r, double v1, double u2l, double u2r, double v2) {
+    if (v < 4) return;
+    final p = (v - 4) * 2;
+    uv[p] = u1l;
+    uv[p + 1] = v1;
+    uv[p + 2] = u1r;
+    uv[p + 3] = v1;
+    uv[p + 4] = u2r;
+    uv[p + 5] = v2;
+    uv[p + 6] = u2l;
+    uv[p + 7] = v2;
+  }
+
+  void draw(Canvas c, Paint p, {bool textured = false, BlendMode mode = BlendMode.dst}) {
     if (i == 0) return;
     final vs = ui.Vertices.raw(
       ui.VertexMode.triangles,
       Float32List.sublistView(pos, 0, v * 2),
+      textureCoordinates: textured ? Float32List.sublistView(uv, 0, v * 2) : null,
       colors: Int32List.sublistView(col, 0, v),
       indices: Uint16List.sublistView(idx, 0, i),
     );
-    c.drawVertices(vs, BlendMode.dst, p);
+    c.drawVertices(vs, mode, p);
     vs.dispose();
   }
 }
@@ -149,6 +193,17 @@ class GameRenderer {
 
   SpriteAtlas? _atlas;
   double _atlasQ = 0;
+  GroundTexture? _tex;
+  final Paint _texPaint = Paint()..isAntiAlias = false;
+
+  static final Float64List _identity = Float64List(16)
+    ..[0] = 1
+    ..[5] = 1
+    ..[10] = 1
+    ..[15] = 1;
+
+  /// Texture texels per world meter on the ground.
+  static const double _texPerM = 40;
 
   static const int _maxSeg = 220;
 
@@ -161,20 +216,22 @@ class GameRenderer {
   final Float32List _ss = Float32List(_maxSeg + 2);
   final Float32List _fog = Float32List(_maxSeg + 2);
   final Float32List _lit = Float32List(_maxSeg + 2);
+  final Float32List _kt = Float32List(_maxSeg + 2); // texture scale per row
   final Uint8List _valid = Uint8List(_maxSeg + 2);
   // Per segment.
   final Float32List _clip = Float32List(_maxSeg + 2);
   final Uint8List _vis = Uint8List(_maxSeg + 2);
 
-  final _Mesh _road = _Mesh(_maxSeg * 36, _maxSeg * 54);
-  final _Mesh _back = _Mesh(800, 1200);
-  final _Mesh _fx = _Mesh(64, 96);
+  final _Mesh _road = _Mesh(_maxSeg * 110, _maxSeg * 165);
+  final _Mesh _back = _Mesh(2400, 3600);
+  final _Mesh _fx = _Mesh(160, 240);
 
   final _Batch _far = _Batch(700);
   final _Batch _near = _Batch(160);
   final _Batch _glow = _Batch(160);
-  final _Batch _sky = _Batch(16);
-  final _Batch _skyGlow = _Batch(4);
+  final _Batch _sky = _Batch(24);
+  final _Batch _skyGlow = _Batch(8);
+  final _Batch _flare = _Batch(12);
   final _Batch _smoke = _Batch(K.maxParticles);
   final _Batch _sparks = _Batch(K.maxParticles);
 
@@ -218,13 +275,16 @@ class GameRenderer {
   final Float32List _mFar = Float32List(512);
   final Float32List _mMid = Float32List(512);
   final Float32List _mNear = Float32List(512);
+  final Float32List _mTrees = Float32List(1024);
   final Float32List _starXY = Float32List(160);
   final Float32List _starBuf = Float32List(160);
   final Float32List _rainBuf = Float32List(4 * 160);
   final Float32List _lineBuf = Float32List(4 * 40);
 
   // Frame values.
-  double _w = 0, _h = 0, _f = 0, _cy = 0;
+  double _w = 0, _h = 0, _f = 0, _cy = 0, _dpr = 2;
+  double _stormK = 0, _wet = 0;
+  double _sunX = 0, _sunY = 0, _sunVis = 0;
   int _base = 0;
   int _nSeg = 0;
 
@@ -236,6 +296,9 @@ class GameRenderer {
   void dispose() {
     _atlas?.dispose();
     _atlas = null;
+    _tex?.dispose();
+    _tex = null;
+    _texPaint.shader = null;
   }
 
   void _buildTables() {
@@ -261,6 +324,15 @@ class GameRenderer {
     fill(_mFar, [2, 3, 5, 9, 17, 31], 0.75);
     fill(_mMid, [3, 4, 7, 13, 23], 0.8);
     fill(_mNear, [5, 8, 19, 37, 61], 0.55);
+    // Forest edge on the horizon: rolling base plus pointy crowns.
+    for (var i = 0; i < _mTrees.length; i++) {
+      final cell = i ~/ 6;
+      final f = (i % 6) / 6;
+      final tip = 1 - (f - 0.5).abs() * 2; // triangle 0..1..0
+      final hgt = 0.45 + hash01(cell * 3 + 1) * 0.55;
+      final base = 0.35 + 0.25 * math.sin(i / _mTrees.length * math.pi * 2 * 5 + 1.3);
+      _mTrees[i] = base * 0.5 + tip * tip * hgt * 0.5;
+    }
     for (var i = 0; i < 80; i++) {
       _starXY[i * 2] = rnd.nextDouble();
       _starXY[i * 2 + 1] = math.pow(rnd.nextDouble(), 1.4).toDouble();
@@ -274,6 +346,20 @@ class GameRenderer {
     _atlas?.dispose();
     _atlas = SpriteAtlas.build(q);
     _atlasQ = q;
+  }
+
+  void _ensureTexture() {
+    if (!quality.textures) return;
+    if (_tex != null) return;
+    final t = GroundTexture.build();
+    _tex = t;
+    _texPaint.shader = ImageShader(
+      t.image,
+      TileMode.repeated,
+      TileMode.repeated,
+      _identity,
+      filterQuality: FilterQuality.medium,
+    );
   }
 
   void _ensureShaders(Size size) {
@@ -306,10 +392,12 @@ class GameRenderer {
   void paint(Canvas canvas, Size size, Game g, double dpr) {
     if (size.isEmpty) return;
     _ensureAtlas(size, dpr);
+    _ensureTexture();
     _ensureShaders(size);
     final atlas = _atlas!;
     _w = size.width;
     _h = size.height;
+    _dpr = dpr;
     final turboAmt = clampD(g.turboT, 0, 1);
     _f = _w * 0.86 * (1 - 0.12 * turboAmt);
     final playerTargetY = _h * 0.84;
@@ -320,6 +408,8 @@ class GameRenderer {
 
     final cycle = (g.playerZ + 300) / K.dayCycle;
     paletteAt(cycle, pal);
+    _stormK = g.phase != Phase.menu ? clampD(1 - g.stormGap / 32, 0, 1) : 0.0;
+    _wet = clampD(_stormK * 1.6, 0, 1) * 0.85 + pal.night * 0.3;
 
     var sx = 0.0, sy = 0.0;
     if (g.shake > 0) {
@@ -334,6 +424,7 @@ class GameRenderer {
     _drawSky(canvas, g, atlas, cycle);
     _drawMountains(canvas, g);
     _drawRoad(canvas, g);
+    _drawHorizonHaze(canvas);
     _drawHeadlight(canvas, g);
     _collectSprites(g, atlas);
     _far.draw(canvas, atlas.image, _spritePaint);
@@ -343,7 +434,7 @@ class GameRenderer {
     _drawParticles(canvas, g, atlas);
     canvas.restore();
 
-    _drawOverlays(canvas, g);
+    _drawOverlays(canvas, g, atlas);
   }
 
   // ------------------------------------------------------------- projection
@@ -380,7 +471,12 @@ class GameRenderer {
           final dd = d < 7 ? d : 14 - d;
           if (dd < 4) lit += (night - 0.25) * 1.1 * (1 - dd / 4);
         }
+        // Slopes facing the camera catch more light, downhill gets darker.
+        final slope = (road.yAt(seg + 1) - road.yAt(seg - 1)) / (2 * K.segLen);
+        lit *= 1 + clampD(slope * 0.7, -0.14, 0.14);
         _lit[i] = lit;
+        // Texture scale: never sample more than ~1.5 texels per pixel.
+        _kt[i] = math.min(1.0, s * _dpr / (_texPerM * 1.5));
       } else {
         _valid[i] = 0;
       }
@@ -420,22 +516,24 @@ class GameRenderer {
     return true;
   }
 
-  int _shadePoint(int c, int i) => lerpColor(shadeColor(c, _lit[i]), pal.fog, _fog[i]);
-
   // -------------------------------------------------------------------- sky
 
   void _drawSky(Canvas canvas, Game g, SpriteAtlas atlas, double cycle) {
     final m = _back..reset();
-    // Sky gradient (two bands for a richer falloff) + haze below horizon.
+    // Sky gradient in three bands (bright band just above the horizon) plus
+    // haze below the horizon.
+    final night = pal.night;
     final mid = lerpColor(pal.skyTop, pal.skyHorizon, 0.55);
+    final low = lerpColor(pal.skyHorizon, 0xffffffff, 0.18 * (1 - night));
     final skyMidY = _cy * 0.55;
+    final lowY = _cy * 0.86;
     m.quad(-50, _w + 50, skyMidY, -50, _w + 50, -50, mid, pal.skyTop);
-    m.quad(-50, _w + 50, _cy + 2, -50, _w + 50, skyMidY, pal.skyHorizon, mid);
+    m.quad(-50, _w + 50, lowY, -50, _w + 50, skyMidY, pal.skyHorizon, mid);
+    m.quad(-50, _w + 50, _cy + 2, -50, _w + 50, lowY, low, pal.skyHorizon);
     m.quad(-50, _w + 50, _h + 50, -50, _w + 50, _cy, pal.fog, pal.fog);
     m.draw(canvas, _meshPaint);
 
-    final night = pal.night;
-    // Stars.
+    // Stars (twinkling).
     if (night > 0.35) {
       final a = (night - 0.35) / 0.65;
       for (var i = 0; i < 80; i++) {
@@ -444,9 +542,12 @@ class GameRenderer {
         _starBuf[i * 2] = x * _w;
         _starBuf[i * 2 + 1] = _starXY[i * 2 + 1] * _cy * 0.92;
       }
-      _stars.color = Color.fromRGBO(255, 255, 255, a * 0.85);
+      _stars.color = Color.fromRGBO(255, 255, 255, a * (0.75 + 0.1 * math.sin(g.time * 3)));
       _stars.strokeWidth = math.max(1.5, _w / 320);
-      canvas.drawRawPoints(ui.PointMode.points, _starBuf, _stars);
+      canvas.drawRawPoints(ui.PointMode.points, Float32List.sublistView(_starBuf, 0, 120), _stars);
+      _stars.color = Color.fromRGBO(220, 230, 255, a * (0.7 + 0.25 * math.sin(g.time * 2.3 + 1)));
+      _stars.strokeWidth = math.max(2.2, _w / 220);
+      canvas.drawRawPoints(ui.PointMode.points, Float32List.sublistView(_starBuf, 120, 160), _stars);
     }
 
     // Sun or moon.
@@ -464,20 +565,27 @@ class GameRenderer {
     final glowS = _w * 0.9 / atlas.width(Spr.glow);
     var bx = _w * 0.7 - g.skyOffset * _w * 0.03;
     bx = bx % (_w * 1.6);
+    _sunVis = 0;
     if (sunH > -0.2) {
       final by = _cy - sunH * _cy * 0.85;
       final r = _w * 0.06;
-      _skyGlow.add(atlas, Spr.glow, bx, by, glowS, withAlpha(pal.sun, 0.55));
+      // Low sun: larger, warmer halo.
+      final lowSun = clampD(1 - sunH / 0.5, 0, 1);
+      _skyGlow.add(atlas, Spr.glow, bx, by, glowS * (1 + lowSun * 0.6), withAlpha(pal.sun, 0.55));
       _skyGlow.add(atlas, Spr.glow, bx, by, glowS * 0.35, withAlpha(pal.sun, 0.9));
       _skyGlow.draw(canvas, atlas.image, _additive);
       _sun.color = Color(pal.sun);
       canvas.drawCircle(Offset(bx, by), r, _sun);
+      _sunX = bx;
+      _sunY = by;
+      _sunVis = clampD((sunH + 0.05) / 0.2, 0, 1) * clampD(1 - night * 1.1, 0, 1);
     }
     if (night > 0.5) {
       final mx = (_w * 0.25 - g.skyOffset * _w * 0.03) % (_w * 1.6);
       final my = _cy * 0.3;
       final a = (night - 0.5) * 2;
       _skyGlow.add(atlas, Spr.glow, mx, my, glowS * 0.5, withAlpha(0xffc8d8ff, 0.35 * a));
+      _skyGlow.add(atlas, Spr.glow, mx, my, glowS * 1.4, withAlpha(0xff8090c0, 0.12 * a));
       _skyGlow.draw(canvas, atlas.image, _additive);
       _sun.color = Color.fromRGBO(236, 242, 255, a);
       canvas.drawCircle(Offset(mx, my), _w * 0.045, _sun);
@@ -486,14 +594,28 @@ class GameRenderer {
       canvas.drawCircle(Offset(mx + _w * 0.015, my + _w * 0.012), _w * 0.008, _sun);
     }
 
-    // Clouds.
+    if (quality.detail && _sunVis > 0.02) _drawRays(canvas, g);
+
+    // Clouds: a far, small and hazy layer near the horizon and a near layer.
     if (quality.clouds) {
       final p = _w * 2.4;
       final tint = withAlpha(pal.cloud, 0.92 - night * 0.45);
-      for (var i = 0; i < 6; i++) {
+      final farTint = withAlpha(lerpColor(pal.cloud, pal.skyHorizon, 0.45), 0.8 - night * 0.4);
+      final nFar = quality.detail ? 5 : 0;
+      for (var i = 0; i < nFar; i++) {
+        final u = hash01(i * 29 + 3);
+        final id = _cloudId(i);
+        final sc = _w * (0.22 + hash01(i * 3 + 7) * 0.18) / atlas.width(id);
+        var x = (u * p - g.skyOffset * _w * 0.05 - g.time * _w * 0.002) % p;
+        if (x < 0) x += p;
+        x -= _w * 0.4;
+        _sky.add(atlas, id, x, _cy * (0.74 + hash01(i * 11) * 0.12), sc, farTint);
+      }
+      final nNear = quality.detail ? 7 : 6;
+      for (var i = 0; i < nNear; i++) {
         final u = hash01(i * 13 + 1);
-        final hy = 0.15 + hash01(i * 7 + 3) * 0.55;
-        final id = Spr.cloud0 + (i & 1);
+        final hy = 0.12 + hash01(i * 7 + 3) * 0.5;
+        final id = _cloudId(i);
         final sc = _w * (0.45 + hash01(i * 5 + 2) * 0.55) / atlas.width(id);
         var x = (u * p - g.skyOffset * _w * 0.08 - g.time * _w * 0.004) % p;
         if (x < 0) x += p;
@@ -502,6 +624,32 @@ class GameRenderer {
       }
       _sky.draw(canvas, atlas.image, _spritePaint);
     }
+  }
+
+  static int _cloudId(int i) => switch (i % 3) {
+    0 => Spr.cloud0,
+    1 => Spr.cloud1,
+    _ => Spr.cloud2,
+  };
+
+  /// Soft crepuscular rays fanning down from the sun (additive, very cheap).
+  void _drawRays(Canvas canvas, Game g) {
+    final m = _fx..reset();
+    final warm = clampD(1 - (pal.night - 0.25).abs() / 0.25, 0, 1);
+    final a = _sunVis * (0.045 + 0.08 * warm);
+    const n = 9;
+    final len = _h * 0.95;
+    for (var k = 0; k < n; k++) {
+      final ang = math.pi / 2 + (k - (n - 1) / 2) * 0.24 + math.sin(g.time * 0.12 + k * 1.7) * 0.04;
+      final spread = 0.03 + hash01(k * 5 + 2) * 0.045;
+      final aa = a * (0.45 + hash01(k * 3 + 1) * 0.55) * (0.7 + 0.3 * math.sin(g.time * 0.4 + k * 2.1));
+      final c0 = withAlpha(pal.sun, aa);
+      final c1 = withAlpha(pal.sun, 0);
+      final xa = _sunX + math.cos(ang - spread) * len, ya = _sunY + math.sin(ang - spread) * len;
+      final xb = _sunX + math.cos(ang + spread) * len, yb = _sunY + math.sin(ang + spread) * len;
+      m.quadP(_sunX - 1, _sunY, _sunX + 1, _sunY, xb, yb, xa, ya, c0, c0, c1, c1);
+    }
+    m.draw(canvas, _addMeshPaint);
   }
 
   void _mountainLayer(
@@ -516,49 +664,32 @@ class GameRenderer {
     int botCol, {
     int snowCol = 0,
     double snowFrom = 2,
+    int columns = 0,
+    double relief = 0,
   }) {
-    final cols = quality.mountainColumns;
+    final cols = columns > 0 ? columns : quality.mountainColumns;
     final step = (_w + 40) / cols;
+    // Faces turned toward the sun (or moon) are lit, the others shaded.
+    final lightSide = (_sunVis > 0 ? _sunX : _w * 0.25) < _w * 0.5 ? -1.0 : 1.0;
     var prevX = -20.0, prevY = 0.0;
     var prevC = topCol;
     for (var k = 0; k <= cols; k++) {
       final x = -20 + k * step;
-      var u = (x + offset) / period;
-      u -= u.floorToDouble();
-      final fi = u * table.length;
-      final i0 = fi.floor() % table.length;
-      final i1 = (i0 + 1) % table.length;
-      final hn = lerpD(table[i0], table[i1], fi - fi.floorToDouble());
+      final u = (x + offset) / period;
+      final hn = _sampleTable(table, u);
       final y = baseY - hn * height;
-      final c = snowCol != 0 && hn > snowFrom
+      var c = snowCol != 0 && hn > snowFrom
           ? lerpColor(topCol, snowCol, clampD((hn - snowFrom) / (1 - snowFrom) * 1.6, 0, 1))
           : topCol;
+      if (relief > 0) {
+        // Slope over a wide window so whole faces are lit or shaded together.
+        const du = 0.02;
+        final slope = (_sampleTable(table, u + du) - _sampleTable(table, u - du)) * height / (2 * du * period);
+        c = shadeColor(c, 1 - clampD(slope * lightSide * relief * 0.5, -0.2, 0.2));
+      }
       if (k > 0) {
         // Quad from previous column to this one: bottom edge at bottomY.
-        if (m.full) return;
-        final b = m.v;
-        final p = b * 2;
-        m.pos[p] = prevX;
-        m.pos[p + 1] = bottomY;
-        m.pos[p + 2] = x;
-        m.pos[p + 3] = bottomY;
-        m.pos[p + 4] = x;
-        m.pos[p + 5] = y;
-        m.pos[p + 6] = prevX;
-        m.pos[p + 7] = prevY;
-        m.col[b] = botCol;
-        m.col[b + 1] = botCol;
-        m.col[b + 2] = c;
-        m.col[b + 3] = prevC;
-        m.v += 4;
-        final ii = m.i;
-        m.idx[ii] = b;
-        m.idx[ii + 1] = b + 1;
-        m.idx[ii + 2] = b + 2;
-        m.idx[ii + 3] = b;
-        m.idx[ii + 4] = b + 2;
-        m.idx[ii + 5] = b + 3;
-        m.i += 6;
+        m.quadP(prevX, bottomY, x, bottomY, x, y, prevX, prevY, botCol, botCol, c, prevC);
       }
       prevX = x;
       prevY = y;
@@ -566,10 +697,19 @@ class GameRenderer {
     }
   }
 
+  static double _sampleTable(Float32List table, double u) {
+    u -= u.floorToDouble();
+    final fi = u * table.length;
+    final i0 = fi.floor() % table.length;
+    final i1 = (i0 + 1) % table.length;
+    return lerpD(table[i0], table[i1], fi - fi.floorToDouble());
+  }
+
   void _drawMountains(Canvas canvas, Game g) {
     final m = _back..reset();
     final so = g.skyOffset * _w;
     final fogC = pal.fog;
+    final relief = quality.detail ? 0.9 * (1 - pal.night * 0.6) : 0.0;
     final farTop = lerpColor(pal.mountainFar, fogC, 0.15);
     final snow = lerpColor(0xfff4f8ff, fogC, 0.25 + pal.night * 0.35);
     _mountainLayer(
@@ -584,6 +724,7 @@ class GameRenderer {
       lerpColor(pal.mountainFar, fogC, 0.8),
       snowCol: snow,
       snowFrom: 0.72,
+      relief: relief * 0.6,
     );
     _mountainLayer(
       m,
@@ -595,7 +736,24 @@ class GameRenderer {
       _cy + _h * 0.05,
       lerpColor(pal.mountainMid, fogC, 0.1),
       lerpColor(pal.mountainMid, fogC, 0.7),
+      relief: relief,
     );
+    if (quality.detail) {
+      // Distant forest edge.
+      final treeC = lerpColor(shadeColor(pal.hills, 0.8), fogC, 0.42);
+      _mountainLayer(
+        m,
+        _mTrees,
+        _w * 1.15,
+        so * 0.3 + g.camX * 6,
+        _w * 0.05,
+        _cy + 2.5,
+        _cy + _h * 0.05,
+        treeC,
+        lerpColor(pal.hills, fogC, 0.6),
+        columns: 150,
+      );
+    }
     _mountainLayer(
       m,
       _mNear,
@@ -606,15 +764,41 @@ class GameRenderer {
       _h + 50,
       lerpColor(pal.hills, fogC, 0.25),
       lerpColor(pal.hills, fogC, 0.6),
+      relief: relief * 0.6,
     );
     m.draw(canvas, _meshPaint);
   }
 
   // ------------------------------------------------------------------- road
 
+  // Cross profile of the asphalt (meters from the center line) and brightness:
+  // dirty edges, darker oil strip in the middle of each lane and polished
+  // wheel tracks.
+  static const List<double> _profX = [
+    -3.2, -2.95, -2.75, -2.0, -1.25, -1.0, -0.75, 0.0, 0.75, 1.0, 1.25, 2.0, 2.75, 2.95, 3.2, //
+  ];
+  static const List<double> _profF = [
+    0.84, 0.97, 1.04, 0.93, 1.04, 1.0, 1.04, 0.93, 1.04, 1.0, 1.04, 0.93, 1.04, 0.97, 0.84, //
+  ];
+
+  double _gain = 1;
+  int _fogG = 0;
+
+  /// Lit, fogged color of [c] at projected row [i] (pre-divided by the texture
+  /// mean when the ground is textured).
+  int _shadePoint(int c, int i) => lerpColor(shadeColor(c, _lit[i] * _gain), _fogG, _fog[i]);
+
   void _drawRoad(Canvas canvas, Game g) {
     final m = _road..reset();
     final p = pal;
+    final tex = _tex != null && quality.textures;
+    final detail = quality.detail;
+    _gain = tex ? 1 / _tex!.mean : 1.0;
+    _fogG = shadeColor(p.fog, _gain);
+    const tS = _texPerM;
+    const shM = K.roadHalf + K.rumbleW + 0.5;
+    const kbM = K.roadHalf + K.rumbleW;
+    final gl = -_w * 0.3, gr = _w * 1.3;
     for (var i = _nSeg; i >= 0; i--) {
       if (_vis[i] == 0) continue;
       final j = i + 1;
@@ -623,61 +807,208 @@ class GameRenderer {
       final x2 = _sx[j], y2 = _sy[j], s2 = _ss[j];
       final alt3 = (seg ~/ 3) & 1 == 0;
       final alt2 = (seg ~/ 2) & 1 == 0;
+      // Texture coordinates: u across the road, v along it (wraps seamlessly
+      // every 64 segments = 20 texture tiles).
+      final k1 = _kt[i], k2 = _kt[j];
+      final u1 = tS * k1, u2 = tS * k2;
+      final vb = (seg & 63) * K.segLen * tS * k1;
+      final v1 = vb, v2 = vb + K.segLen * tS * k1;
 
-      // Grass.
+      // Grass, split at the road so it can get a soft lateral falloff.
       final gc = alt3 ? p.grassA : p.grassB;
-      m.quad(-_w * 0.3, _w * 1.3, y1, -_w * 0.3, _w * 1.3, y2, _shadePoint(gc, i), _shadePoint(gc, j));
+      final gn1 = _shadePoint(gc, i), gn2 = _shadePoint(gc, j);
+      var gf1 = gn1, gf2 = gn2;
+      if (detail) {
+        final gFar = lerpColor(gc, p.hills, 0.35);
+        gf1 = _shadePoint(gFar, i);
+        gf2 = _shadePoint(gFar, j);
+      }
+      final sh1 = shM * s1, sh2 = shM * s2;
+      m.quad4(gl, x1 - sh1, y1, gl, x2 - sh2, y2, gf1, gn1, gn2, gf2);
+      if (tex) {
+        m.uvLast((gl - x1) / s1 * u1, -shM * u1, v1 * 0.2, (gl - x2) / s2 * u2, -shM * u2, v2 * 0.2);
+      }
+      m.quad4(x1 + sh1, gr, y1, x2 + sh2, gr, y2, gn1, gf1, gf2, gn2);
+      if (tex) {
+        m.uvLast(shM * u1, (gr - x1) / s1 * u1, v1 * 0.2, shM * u2, (gr - x2) / s2 * u2, v2 * 0.2);
+      }
 
+      // Gravel shoulder just outside the kerb.
+      final shoulder = shadeColor(lerpColor(gc, 0xff8a8170, 0.35), 0.8);
+      m.quad(x1 - sh1, x1 + sh1, y1, x2 - sh2, x2 + sh2, y2, _shadePoint(shoulder, i), _shadePoint(shoulder, j));
+      if (tex) m.uvLast(-shM * u1, shM * u1, v1, -shM * u2, shM * u2, v2);
+
+      // Kerbs (beveled: lit inner edge, darker outer edge).
       final rw1 = K.roadHalf * s1, rw2 = K.roadHalf * s2;
-      final kb1 = (K.roadHalf + K.rumbleW) * s1, kb2 = (K.roadHalf + K.rumbleW) * s2;
-      // Gravel shoulder darker band just outside the kerb.
-      final sh1 = (K.roadHalf + K.rumbleW + 0.5) * s1, sh2 = (K.roadHalf + K.rumbleW + 0.5) * s2;
-      final shoulder = shadeColor(gc, 0.82);
-      final shc1 = _shadePoint(shoulder, i), shc2 = _shadePoint(shoulder, j);
-      m.quad(x1 - sh1, x1 + sh1, y1, x2 - sh2, x2 + sh2, y2, shc1, shc2);
-
-      // Kerbs.
+      final kb1 = kbM * s1, kb2 = kbM * s2;
       final rc = alt2 ? p.rumbleA : p.rumbleB;
       final rc1 = _shadePoint(rc, i), rc2 = _shadePoint(rc, j);
-      m.quad(x1 - kb1, x1 - rw1, y1, x2 - kb2, x2 - rw2, y2, rc1, rc2);
-      m.quad(x1 + rw1, x1 + kb1, y1, x2 + rw2, x2 + kb2, y2, rc1, rc2);
+      final ro1 = detail ? shadeColor(rc1, 0.78) : rc1, ro2 = detail ? shadeColor(rc2, 0.78) : rc2;
+      final ri1 = detail ? shadeColor(rc1, 1.08) : rc1, ri2 = detail ? shadeColor(rc2, 1.08) : rc2;
+      m.quad4(x1 - kb1, x1 - rw1, y1, x2 - kb2, x2 - rw2, y2, ro1, ri1, ri2, ro2);
+      if (tex) m.uvLast(-kbM * u1, -K.roadHalf * u1, v1, -kbM * u2, -K.roadHalf * u2, v2);
+      m.quad4(x1 + rw1, x1 + kb1, y1, x2 + rw2, x2 + kb2, y2, ri1, ro1, ro2, ri2);
+      if (tex) m.uvLast(K.roadHalf * u1, kbM * u1, v1, K.roadHalf * u2, kbM * u2, v2);
 
       // Asphalt.
       final ac = alt3 ? p.roadA : p.roadB;
-      m.quad(x1 - rw1, x1 + rw1, y1, x2 - rw2, x2 + rw2, y2, _shadePoint(ac, i), _shadePoint(ac, j));
+      final a1 = _shadePoint(ac, i), a2 = _shadePoint(ac, j);
+      if (detail && s1 > 1.5) {
+        // Occasional repaired patch in one lane (spans 3 segments).
+        var patch = 9;
+        final grp = seg ~/ 3;
+        if (hash01(grp * 7 + 1) < 0.08) patch = (hash01(grp * 13 + 5) * 3).floor() - 1;
+        for (var k = 0; k < _profX.length - 1; k++) {
+          final xa = _profX[k], xb = _profX[k + 1];
+          var fa = _profF[k], fb = _profF[k + 1];
+          if (patch != 9 && ((xa + xb) * 0.5 - patch * K.laneW).abs() < 0.9) {
+            fa *= 0.9;
+            fb *= 0.9;
+          }
+          m.quad4(
+            x1 + xa * s1,
+            x1 + xb * s1,
+            y1,
+            x2 + xa * s2,
+            x2 + xb * s2,
+            y2,
+            shadeColor(a1, fa),
+            shadeColor(a1, fb),
+            shadeColor(a2, fb),
+            shadeColor(a2, fa),
+          );
+          if (tex) m.uvLast(xa * u1, xb * u1, v1, xa * u2, xb * u2, v2);
+        }
+      } else {
+        m.quad(x1 - rw1, x1 + rw1, y1, x2 - rw2, x2 + rw2, y2, a1, a2);
+        if (tex) m.uvLast(-K.roadHalf * u1, K.roadHalf * u1, v1, -K.roadHalf * u2, K.roadHalf * u2, v2);
+      }
 
       // Solid edge lines.
       final lc1 = _shadePoint(p.lane, i), lc2 = _shadePoint(p.lane, j);
       if (s1 * 0.1 > 0.4) {
         const e0 = K.roadHalf - 0.3, e1 = K.roadHalf - 0.18;
         m.quad(x1 - e1 * s1, x1 - e0 * s1, y1, x2 - e1 * s2, x2 - e0 * s2, y2, lc1, lc2);
+        if (tex) m.uvLast(-e1 * u1, -e0 * u1, v1, -e1 * u2, -e0 * u2, v2);
         m.quad(x1 + e0 * s1, x1 + e1 * s1, y1, x2 + e0 * s2, x2 + e1 * s2, y2, lc1, lc2);
+        if (tex) m.uvLast(e0 * u1, e1 * u1, v1, e0 * u2, e1 * u2, v2);
       }
       // Dashed lane separators.
       if (seg % 4 < 2 && s1 * 0.14 > 0.5) {
         const l0 = K.laneW * 0.5 - 0.07, l1 = K.laneW * 0.5 + 0.07;
         m.quad(x1 - l1 * s1, x1 - l0 * s1, y1, x2 - l1 * s2, x2 - l0 * s2, y2, lc1, lc2);
+        if (tex) m.uvLast(-l1 * u1, -l0 * u1, v1, -l1 * u2, -l0 * u2, v2);
         m.quad(x1 + l0 * s1, x1 + l1 * s1, y1, x2 + l0 * s2, x2 + l1 * s2, y2, lc1, lc2);
+        if (tex) m.uvLast(l0 * u1, l1 * u1, v1, l0 * u2, l1 * u2, v2);
+      }
+
+      if (detail && s1 > 0.8) _drawRails(m, seg, i, j);
+    }
+    if (tex) {
+      m.draw(canvas, _texPaint, textured: true, mode: BlendMode.modulate);
+    } else {
+      m.draw(canvas, _meshPaint);
+    }
+  }
+
+  /// Guard rails in the forest, wooden fences in the meadows. Built from mesh
+  /// quads so hills hide them correctly and they cost no sprites.
+  void _drawRails(_Mesh m, int seg, int i, int j) {
+    final biome = (seg ~/ 500) % 3;
+    if (biome == 2) return;
+    final x1 = _sx[i], y1 = _sy[i], s1 = _ss[i];
+    final x2 = _sx[j], s2 = _ss[j];
+    const railX = K.roadHalf + K.rumbleW + 0.95;
+    final metal = biome == 0;
+    for (var side = -1.0; side <= 1; side += 2) {
+      final xx = side * railX;
+      final ax = x1 + xx * s1, bx = x2 + xx * s2;
+      if (metal) {
+        _railBand(m, i, j, ax, bx, 0.46, 0.62, 0xffa5adb8);
+        _railBand(m, i, j, ax, bx, 0.62, 0.78, 0xffd2d8e0);
+      } else {
+        _railBand(m, i, j, ax, bx, 0.34, 0.44, 0xff9a7550);
+        _railBand(m, i, j, ax, bx, 0.76, 0.88, 0xffa98460);
+      }
+      // Post at the near end of the section.
+      if (seg.isEven) {
+        final pw = (metal ? 0.07 : 0.08) * s1;
+        final ph = (metal ? 0.8 : 1.0) * s1;
+        final pc = metal ? 0xff6d747e : 0xff6a4a2c;
+        final top = _shadePoint(pc, i), bot = _shadePoint(shadeColor(pc, 0.6), i);
+        m.quad(ax - pw, ax + pw, y1, ax - pw, ax + pw, y1 - ph, bot, top);
+        // Reflector on the guard rail posts, picked up by the headlight.
+        if (metal && pal.night > 0.3) {
+          final rc = lerpColor(0xffff9a20, 0xffffffff, 0.2);
+          final rcol = lerpColor(withAlpha(rc, 1), _fogG, _fog[i]);
+          m.quad(ax - pw, ax + pw, y1 - ph * 0.72, ax - pw, ax + pw, y1 - ph * 0.86, rcol, rcol);
+        }
       }
     }
+  }
+
+  void _railBand(_Mesh m, int i, int j, double ax, double bx, double h0, double h1, int c) {
+    final s1 = _ss[i], s2 = _ss[j], y1 = _sy[i], y2 = _sy[j];
+    final dark = shadeColor(c, 0.78);
+    m.quadP(
+      ax,
+      y1 - h0 * s1,
+      bx,
+      y2 - h0 * s2,
+      bx,
+      y2 - h1 * s2,
+      ax,
+      y1 - h1 * s1,
+      _shadePoint(dark, i),
+      _shadePoint(dark, j),
+      _shadePoint(c, j),
+      _shadePoint(c, i),
+    );
+  }
+
+  /// Hazy band where the land meets the sky (aerial perspective).
+  void _drawHorizonHaze(Canvas canvas) {
+    if (!quality.detail) return;
+    final m = _fx..reset();
+    final c = lerpColor(pal.fog, 0xffffffff, 0.12 * (1 - pal.night));
+    const a = 0.5;
+    final top = _cy - _h * 0.05, bot = _cy + _h * 0.025;
+    m.quad(-10, _w + 10, _cy, -10, _w + 10, top, withAlpha(c, a), withAlpha(c, 0));
+    m.quad(-10, _w + 10, bot, -10, _w + 10, _cy, withAlpha(c, 0), withAlpha(c, a));
     m.draw(canvas, _meshPaint);
   }
+
+  final Float32List _hlN = Float32List(4), _hlM = Float32List(4), _hlF = Float32List(4);
+  static const List<double> _hlNo = [-0.8, -0.35, 0.35, 0.8];
+  static const List<double> _hlMo = [-1.3, -0.6, 0.6, 1.3];
+  static const List<double> _hlFo = [-4.2, -2.2, 2.2, 4.2];
 
   void _drawHeadlight(Canvas canvas, Game g) {
     final night = pal.night;
     if (night < 0.2 || g.phase == Phase.crashing) return;
     final m = _fx..reset();
-    if (!_projectZ(g.playerZ + 0.8, g.x, 0, g)) return;
+    if (!_projectZ(g.playerZ + 0.6, g.x, 0, g)) return;
     final nx = _ox, ny = _oy, ns = _os;
+    if (!_projectZ(g.playerZ + 4, g.x + g.lean * 0.4, 0, g)) return;
+    final mx = _ox, my = _oy, ms = _os;
     if (!_projectZ(g.playerZ + 30, g.x + g.lean * 2, 0, g)) return;
     final fx = _ox, fy = _oy, fs = _os;
     final a = (night - 0.2) / 0.8;
     final c1 = withAlpha(0xffffe6a8, 0.34 * a);
     const c0 = 0x00ffe6a8;
-    // Bright core plus soft fringes on both sides fading to nothing.
-    m.quad(nx - 0.35 * ns, nx + 0.35 * ns, ny, fx - 2.2 * fs, fx + 2.2 * fs, fy, c1, c0);
-    m.quad4(nx - 0.9 * ns, nx - 0.35 * ns, ny, fx - 4.2 * fs, fx - 2.2 * fs, fy, c0, c1, c0, c0);
-    m.quad4(nx + 0.35 * ns, nx + 0.9 * ns, ny, fx + 2.2 * fs, fx + 4.2 * fs, fy, c1, c0, c0, c0);
+    // 3 columns (soft fringe, core, soft fringe) x 2 rows: fades in just
+    // ahead of the wheel, full at ~4 m, gone at 30 m.
+    final nxs = _hlN, mxs = _hlM, fxs = _hlF;
+    for (var k = 0; k < 4; k++) {
+      nxs[k] = nx + _hlNo[k] * ns;
+      mxs[k] = mx + _hlMo[k] * ms;
+      fxs[k] = fx + _hlFo[k] * fs;
+    }
+    for (var k = 0; k < 3; k++) {
+      final ml = k == 0 ? c0 : c1, mr = k == 2 ? c0 : c1;
+      m.quadP(nxs[k], ny, nxs[k + 1], ny, mxs[k + 1], my, mxs[k], my, c0, c0, mr, ml);
+      m.quadP(mxs[k], my, mxs[k + 1], my, fxs[k + 1], fy, fxs[k], fy, ml, mr, c0, c0);
+    }
     m.draw(canvas, _addMeshPaint);
   }
 
@@ -737,6 +1068,7 @@ class GameRenderer {
       _order[j] = k;
     }
     var oi = 0;
+    final detail = quality.detail;
     final step = quality.sceneryStep;
     final pz = g.playerZ;
 
@@ -769,8 +1101,15 @@ class GameRenderer {
           final hx = poleX - side * headOff;
           final glowC = withAlpha(0xffffd890, (pal.night - 0.25) * 0.9 * (1 - fogT));
           _addWorld(_glow, a, Spr.glow, _sx[i] + hx * s, _sy[i] - 6.2 * s, s, 1e9, glowC, scaleMul: 2.4);
+          if (detail && _wet > 0.1) {
+            // Reflection of the lamp on the (wet) asphalt.
+            final rc = withAlpha(0xffffd890, (pal.night - 0.25) * 0.8 * _wet * (1 - fogT));
+            _addWorld(_glow, a, Spr.streak, _sx[i] + hx * s, _sy[i] - 0.05 * s, s, clip, rc, scaleMul: 1.4);
+          }
         }
       }
+
+      _collectExtras(g, a, b, i, seg, biome, s, zr, fogT, col, clip);
 
       if (seg % 97 == 0 && seg > 20) {
         final side = (seg ~/ 97).isEven ? 1 : -1;
@@ -787,7 +1126,7 @@ class GameRenderer {
         final h3 = hash01(seg * 17 + side * 3 + 9);
         int id;
         if (biome == 0) {
-          id = h2 < 0.75 ? Spr.pine : (h2 < 0.88 ? Spr.bush : Spr.rock);
+          id = h2 < 0.6 ? Spr.pine : (h2 < 0.76 ? Spr.birch : (h2 < 0.88 ? Spr.bush : Spr.rock));
         } else if (biome == 1) {
           id = h2 < 0.4 ? Spr.oak : (h2 < 0.62 ? Spr.bush : (h2 < 0.8 ? Spr.flower : (h2 < 0.9 ? Spr.rock : Spr.pine)));
         } else {
@@ -801,6 +1140,76 @@ class GameRenderer {
     while (oi < _orderN) {
       _addObject(g, a, objs[_order[oi]]);
       oi++;
+    }
+  }
+
+  /// Landmarks and small details: wind turbines, barns, poplar avenue, grass
+  /// tufts and fireflies. Everything is derived from the segment index, so
+  /// nothing is stored.
+  void _collectExtras(
+    Game g,
+    SpriteAtlas a,
+    _Batch b,
+    int i,
+    int seg,
+    int biome,
+    double s,
+    double zr,
+    double fogT,
+    int col,
+    double clip,
+  ) {
+    final sx = _sx[i], sy = _sy[i];
+    if (biome == 1) {
+      // Wind turbines far out in the fields.
+      if (seg % 37 == 5) {
+        final side = hash01(seg * 3) < 0.5 ? -1 : 1;
+        final lat = side * (34 + hash01(seg * 7 + 1) * 46);
+        final sm = 0.85 + hash01(seg * 11) * 0.3;
+        final bx = sx + lat * s;
+        _addWorld(b, a, Spr.tower, bx, sy, s, clip, col, scaleMul: sm);
+        final hubY = sy - a.height(Spr.tower) / a.metersToSrc[Spr.tower] * s * sm;
+        if (hubY < clip) {
+          _addWorld(b, a, Spr.blades, bx, hubY, s, 1e9, col, rot: g.time * 0.9 + seg, scaleMul: sm);
+        }
+      }
+      if (seg % 113 == 40) {
+        final side = hash01(seg * 5) < 0.5 ? -1 : 1;
+        _addWorld(b, a, Spr.barn, sx + side * (17 + hash01(seg * 9) * 9) * s, sy, s, clip, col);
+      }
+    } else if (biome == 2 && seg % 6 == 3) {
+      // Poplar avenue.
+      for (var side = -1; side <= 1; side += 2) {
+        final sm = 0.9 + hash01(seg * 13 + side) * 0.25;
+        _addWorld(b, a, Spr.poplar, sx + side * (K.roadHalf + K.rumbleW + 3.4) * s, sy, s, clip, col, scaleMul: sm);
+      }
+    }
+    if (!quality.detail) return;
+
+    // Grass tufts along the road edge (only near the camera).
+    if (zr < 60) {
+      for (var side = -1; side <= 1; side += 2) {
+        final h = hash01(seg * 41 + side * 5 + 2);
+        if (h > 0.8) continue;
+        final id = Spr.tuft0 + (biome == 1 && h < 0.35 ? 1 : 0);
+        final lat = side * (K.roadHalf + K.rumbleW + 0.6 + hash01(seg * 43 + side) * 2.6);
+        _addWorld(b, a, id, sx + lat * s, sy, s, clip, col, scaleMul: 0.7 + h * 0.6);
+      }
+    }
+
+    // Fireflies on summer nights.
+    final night = pal.night;
+    if (quality.glows && night > 0.45 && biome != 2 && seg.isEven && zr < 90) {
+      final hh = hash01(seg * 19 + 3);
+      if (hh < 0.45) {
+        final side = hh < 0.22 ? -1 : 1;
+        final t = g.time;
+        final lat = side * (5.2 + hash01(seg * 23) * 7) + math.sin(t * 0.7 + seg) * 0.6;
+        final fy = 0.6 + hash01(seg * 29) * 1.6 + math.sin(t * 1.1 + seg * 1.3) * 0.35;
+        final blink = 0.5 + 0.5 * math.sin(t * 2.6 + seg * 2.1);
+        final fc = withAlpha(0xffd4ff6a, (night - 0.45) * 1.8 * blink * blink * (1 - fogT));
+        _addWorld(_glow, a, Spr.glow, sx + lat * s, sy - fy * s, s, 1e9, fc, scaleMul: 0.4);
+      }
     }
   }
 
@@ -853,6 +1262,15 @@ class GameRenderer {
         }
         final frame = ((g.time * 9 + o.phase) % 8).floor() & 7;
         _addWorld(b, a, Spr.coin0 + frame, ox, oy, os, clip, col);
+        if (quality.detail && quality.glows && b == _far) {
+          // Occasional glint.
+          final tw = math.sin(g.time * 3.1 + o.phase * 5.3);
+          if (tw > 0.9) {
+            final k = (tw - 0.9) * 10;
+            final sc = withAlpha(0xffffffff, k * (1 - fogT));
+            _addWorld(_glow, a, Spr.sparkle, ox + 0.17 * os, oy - 0.17 * os, os, 1e9, sc, scaleMul: 0.75 * k + 0.2);
+          }
+        }
       default:
         // Power-ups.
         final id = switch (k) {
@@ -886,6 +1304,11 @@ class GameRenderer {
     final ox = _ox, oy = _oy, os = _os;
     _addWorld(_glow, a, Spr.glow, ox - dx * os, oy - h * os, os, 1e9, c, scaleMul: 0.9 + pal.night * 0.6);
     _addWorld(_glow, a, Spr.glow, ox + dx * os, oy - h * os, os, 1e9, c, scaleMul: 0.9 + pal.night * 0.6);
+    if (quality.detail && _wet > 0.15) {
+      final rc = withAlpha(0xffff3030, i * 0.7 * _wet * (1 - fogT));
+      _addWorld(_glow, a, Spr.streak, ox - dx * os, oy + 0.05 * os, os, 1e9, rc, scaleMul: 0.55);
+      _addWorld(_glow, a, Spr.streak, ox + dx * os, oy + 0.05 * os, os, 1e9, rc, scaleMul: 0.55);
+    }
   }
 
   // ----------------------------------------------------------------- player
@@ -913,6 +1336,18 @@ class GameRenderer {
     final blink = g.invulnT > 0 && g.phase == Phase.playing && ((g.time * 14).floor() & 1) == 0;
     if (blink) return;
 
+    // Let the scene light (dusk, night, storm) tint the rider so they sit in
+    // the world instead of looking pasted on. One small offscreen layer.
+    final tint = _riderTint();
+    final tinted = quality.detail && tint != 0xffffffff;
+    if (tinted) {
+      if (tint != _tintColor) {
+        _tintColor = tint;
+        _tintPaint.colorFilter = ColorFilter.mode(Color(tint), BlendMode.modulate);
+      }
+      final top = gy - (g.jumpY + 2.1) * s;
+      canvas.saveLayer(Rect.fromLTRB(gx - 1.3 * s, top, gx + 1.3 * s, gy + 0.3 * s), _tintPaint);
+    }
     canvas.save();
     canvas.translate(gx, gy - g.jumpY * s);
     canvas.scale(s, s);
@@ -927,16 +1362,28 @@ class GameRenderer {
       crash: g.phase == Phase.crashing ? 1 : 0,
     );
     canvas.restore();
+    if (tinted) canvas.restore();
 
-    // Rear reflector glow at night.
+    // Blinking rear LED at night.
     if (quality.glows && pal.night > 0.3) {
-      final rc = withAlpha(0xffff2020, (pal.night - 0.3) * 0.9);
+      final on = math.sin(g.time * 9) > -0.2 ? 1.0 : 0.3;
+      final rc = withAlpha(0xffff2020, (pal.night - 0.3) * 0.95 * on);
       final rot = g.lean;
       final rx = gx + math.sin(rot) * 0.79 * s;
       final ry = gy - g.jumpY * s - math.cos(rot) * 0.79 * s;
       _glow.add(a, Spr.glow, rx, ry, s * 0.55 / a.metersToSrc[Spr.glow], rc);
       _glow.draw(canvas, a.image, _additive);
     }
+  }
+
+  int _tintColor = 0xffffffff;
+  final Paint _tintPaint = Paint();
+
+  int _riderTint() {
+    // Quantized so the color filter is rebuilt only a few times per cycle.
+    var t = lerpColor(pal.spriteTint, 0xffffffff, 0.45);
+    t = shadeColor(t, 1 - _stormK * 0.25);
+    return t & 0xfff8f8f8 | 0xff070707;
   }
 
   // -------------------------------------------------------------- particles
@@ -965,10 +1412,35 @@ class GameRenderer {
 
   // --------------------------------------------------------------- overlays
 
-  void _drawOverlays(Canvas canvas, Game g) {
+  static const List<double> _flareT = [0.42, 0.7, 1.05, 1.32, 1.7];
+  static const List<double> _flareS = [0.05, 0.11, 0.04, 0.17, 0.08];
+  static const List<double> _flareA = [0.16, 0.08, 0.22, 0.06, 0.1];
+  static const List<int> _flareC = [0xffffd27a, 0xff9fe0ff, 0xffffffff, 0xffb48cff, 0xff8affc8];
+
+  void _drawOverlays(Canvas canvas, Game g, SpriteAtlas atlas) {
     final w = _w, h = _h;
     final playing = g.phase != Phase.menu;
-    final stormK = playing ? clampD(1 - g.stormGap / 32, 0, 1) : 0.0;
+    final stormK = _stormK;
+
+    // Sun bloom and lens flare ghosts along the sun -> screen center line.
+    if (quality.detail && quality.glows && _sunVis > 0.05 && _sunX > -w * 0.2 && _sunX < w * 1.2) {
+      final base = _sunVis * (1 - stormK);
+      final gw = atlas.width(Spr.glow);
+      final dx = w * 0.5 - _sunX, dy = h * 0.5 - _sunY;
+      _flare.add(atlas, Spr.glow, _sunX, _sunY, w * 1.3 / gw, withAlpha(pal.sun, 0.16 * base));
+      for (var k = 0; k < _flareT.length; k++) {
+        final t = _flareT[k];
+        _flare.add(
+          atlas,
+          Spr.glow,
+          _sunX + dx * t,
+          _sunY + dy * t,
+          w * _flareS[k] * 2 / gw,
+          withAlpha(_flareC[k], _flareA[k] * base),
+        );
+      }
+      _flare.draw(canvas, atlas.image, _additive);
+    }
 
     // Speed lines (turbo or very fast).
     final speedK = clampD((g.speed - 24) / 10, 0, 1);

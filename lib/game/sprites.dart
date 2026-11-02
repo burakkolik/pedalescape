@@ -30,7 +30,17 @@ class Spr {
   static const cloud1 = 31;
   static const shadow = 32;
   static const flower = 33;
-  static const count = 34;
+  static const tuft0 = 34; // grass
+  static const tuft1 = 35; // dry grass with daisies
+  static const tower = 36; // wind turbine mast (hub at the top edge)
+  static const blades = 37; // wind turbine rotor, rotated every frame
+  static const barn = 38;
+  static const poplar = 39;
+  static const birch = 40;
+  static const sparkle = 41; // 4 point star glint (additive)
+  static const streak = 42; // vertical light streak for wet road reflections
+  static const cloud2 = 43;
+  static const count = 44;
 }
 
 class _Def {
@@ -75,6 +85,16 @@ const List<_Def> _defs = [
   _Def(440, 170, 1.0, 0.5), // cloud1
   _Def(128, 40, 1.0, 0.5), // shadow
   _Def(110, 60, 0.9, 1), // flower patch
+  _Def(120, 84, 0.95, 1), // tuft0
+  _Def(120, 84, 0.95, 1), // tuft1
+  _Def(56, 440, 4.0, 1), // tower
+  _Def(400, 400, 30.0, 0.5), // blades
+  _Def(380, 280, 13.0, 1), // barn
+  _Def(130, 440, 2.8, 1), // poplar
+  _Def(220, 420, 4.2, 1), // birch
+  _Def(64, 64, 1.0, 0.5), // sparkle
+  _Def(32, 160, 1.0, 0), // streak (anchored at the top)
+  _Def(560, 200, 1.0, 0.5), // cloud2
 ];
 
 /// The whole world's art, drawn procedurally once into a single texture so that
@@ -236,6 +256,40 @@ void _draw(Canvas c, int id, double w, double h) {
     case Spr.cloud0:
     case Spr.cloud1:
       _cloud(c, w, h, id - Spr.cloud0);
+    case Spr.cloud2:
+      _cloud(c, w, h, 2);
+    case Spr.tuft0:
+    case Spr.tuft1:
+      _tuft(c, w, h, id - Spr.tuft0);
+    case Spr.tower:
+      _tower(c, w, h);
+    case Spr.blades:
+      _blades(c, w, h);
+    case Spr.barn:
+      _barn(c, w, h);
+    case Spr.poplar:
+      _poplar(c, w, h);
+    case Spr.birch:
+      _birch(c, w, h);
+    case Spr.sparkle:
+      _sparkle(c, w, h);
+    case Spr.streak:
+      c.drawRect(
+        Rect.fromLTWH(0, 0, w, h),
+        _grad(Offset.zero, Offset(0, h), const [Color(0xffffffff), Color(0x66ffffff), Color(0x00ffffff)], const [0, 0.3, 1]),
+      );
+      // Soften the sides.
+      c.drawRect(
+        Rect.fromLTWH(0, 0, w, h),
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..shader = ui.Gradient.linear(
+            Offset.zero,
+            Offset(w, 0),
+            const [Color(0x00000000), Color(0xff000000), Color(0x00000000)],
+            const [0, 0.5, 1],
+          ),
+      );
     case Spr.shadow:
       _shadow(c, w / 2, h / 2, w / 2, h / 2, 0.55);
     case Spr.flower:
@@ -283,6 +337,7 @@ void _pine(Canvas c, double w, double h) {
       ..quadraticBezierTo(w / 2, bottom - 40, w / 2 - half, bottom)
       ..close();
     c.drawPath(band, _fill(const Color(0x33000000)));
+    _leafSpeckle(c, p, Rect.fromLTRB(w / 2 - half, top, w / 2 + half, bottom), 20 + i, 26);
   }
 }
 
@@ -308,8 +363,10 @@ void _oak(Canvas c, double w, double h) {
     [0.64, 0.2, 0.2],
     [0.5, 0.48, 0.22],
   ];
+  final crown = Path();
   for (final bl in blobs) {
     final cx = bl[0] * w, cy = bl[1] * h, rr = bl[2] * w;
+    crown.addOval(Rect.fromCircle(center: Offset(cx, cy), radius: rr));
     c.drawCircle(
       Offset(cx, cy),
       rr,
@@ -321,6 +378,7 @@ void _oak(Canvas c, double w, double h) {
       ),
     );
   }
+  _leafSpeckle(c, crown, Rect.fromLTWH(0, 0, w, h * 0.72), 3, 110);
 }
 
 void _bush(Canvas c, double w, double h) {
@@ -553,6 +611,34 @@ void _car(Canvas c, double w, double h, int v) {
   c.drawRRect(
     RRect.fromRectAndRadius(Rect.fromLTWH(18, h - 72, w - 36, 22), const Radius.circular(10)),
     _grad(Offset(0, h - 72), Offset(0, h - 50), const [Color(0xff3b3e45), Color(0xff15161a)]),
+  );
+  // Exhaust pipe.
+  c.drawRRect(
+    RRect.fromRectAndRadius(Rect.fromLTWH(w - 92, h - 54, 26, 10), const Radius.circular(5)),
+    _grad(Offset(0, h - 54), Offset(0, h - 44), const [Color(0xffb9bec6), Color(0xff4a4e55)]),
+  );
+  c.drawOval(Rect.fromLTWH(w - 88, h - 52, 12, 6), _fill(const Color(0xff101113)));
+  // Side mirrors.
+  for (final sx in [-1.0, 1.0]) {
+    final mx = sx < 0 ? 22.0 : w - 22.0;
+    c.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(mx, 92), width: 26, height: 18), const Radius.circular(6)),
+      _fill(dark),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(mx, 90), width: 20, height: 10), const Radius.circular(4)),
+      _fill(body),
+    );
+  }
+  // Glossy reflection band across the trunk.
+  c.drawRRect(
+    lower,
+    _grad(
+      const Offset(0, 96),
+      Offset(0, h - 72),
+      const [Color(0x00ffffff), Color(0x38ffffff), Color(0x00ffffff), Color(0x00000000)],
+      const [0, 0.12, 0.3, 1],
+    ),
   );
   // Roof highlight.
   c.drawLine(
@@ -876,22 +962,274 @@ void _x2Icon(Canvas c, double r) {
 }
 
 void _cloud(Canvas c, double w, double h, int v) {
-  final rnd = math.Random(11 + v);
+  // Cumulus: a flat, shaded base and bright billowing tops.
+  final rnd = math.Random(11 + v * 7);
   final n = 7 + v * 2;
+  final baseY = h * 0.78;
+  final puffs = <List<double>>[];
   for (var i = 0; i < n; i++) {
     final t = i / (n - 1);
-    final cx = w * (0.15 + 0.7 * t) + (rnd.nextDouble() - 0.5) * 30;
-    final rr = h * (0.22 + 0.2 * math.sin(t * math.pi)) + rnd.nextDouble() * 14;
-    final cy = h * 0.62 - rr * 0.5 + rnd.nextDouble() * 10;
+    final cx = w * (0.13 + 0.74 * t) + (rnd.nextDouble() - 0.5) * 26;
+    final rr = h * (0.15 + 0.17 * math.sin(t * math.pi)) + rnd.nextDouble() * 10;
+    final cy = baseY - rr * (0.5 + rnd.nextDouble() * 0.3);
+    puffs.add([cx, cy, rr]);
+  }
+  // A few smaller puffs on top for a cauliflower silhouette.
+  for (var i = 0; i < 3 + v; i++) {
+    final p = puffs[2 + rnd.nextInt(n - 4)];
+    puffs.add([p[0] + (rnd.nextDouble() - 0.5) * p[2], p[1] - p[2] * 0.45, p[2] * (0.5 + rnd.nextDouble() * 0.2)]);
+  }
+  c.save();
+  c.clipRect(Rect.fromLTWH(0, 0, w, baseY + 6));
+  for (final p in puffs) {
+    final cx = p[0], cy = p[1], rr = p[2];
     c.drawCircle(
       Offset(cx, cy),
       rr,
       _radial(
-        Offset(cx, cy - rr * 0.3),
-        rr,
-        const [Color(0xffffffff), Color(0xf0f4f7fb), Color(0x00e6ecf3)],
-        const [0, 0.7, 1],
+        Offset(cx - rr * 0.2, cy - rr * 0.35),
+        rr * 1.15,
+        const [Color(0xffffffff), Color(0xfff4f7fb), Color(0xe6e2e9f2), Color(0x00dfe6ef)],
+        const [0, 0.5, 0.78, 1],
       ),
     );
   }
+  // Shade the lower half (light comes from above).
+  c.drawRect(
+    Rect.fromLTWH(0, 0, w, h),
+    Paint()
+      ..blendMode = BlendMode.srcATop
+      ..shader = ui.Gradient.linear(Offset(0, h * 0.25), Offset(0, baseY + 6), const [
+        Color(0x00b8c4d6),
+        Color(0x30a9b6cc),
+        Color(0x8890a0ba),
+      ], const [0, 0.5, 1]),
+  );
+  c.restore();
+  // Soft feathered bottom edge.
+  c.drawRect(
+    Rect.fromLTWH(0, baseY - 14, w, 20),
+    Paint()
+      ..blendMode = BlendMode.dstOut
+      ..shader = ui.Gradient.linear(Offset(0, baseY - 14), Offset(0, baseY + 6), const [
+        Color(0x00000000),
+        Color(0xff000000),
+      ]),
+  );
+}
+
+void _tuft(Canvas c, double w, double h, int v) {
+  final rnd = math.Random(70 + v);
+  final base = v == 0 ? const Color(0xff3f8f34) : const Color(0xff7d9a3a);
+  final tip = v == 0 ? const Color(0xff9be05e) : const Color(0xffd8d27a);
+  _shadow(c, w / 2, h - 4, w * 0.42, 6, 0.3);
+  final blade = Paint()..isAntiAlias = true;
+  for (var i = 0; i < 16; i++) {
+    final x0 = w * 0.2 + rnd.nextDouble() * w * 0.6;
+    final len = h * (0.45 + rnd.nextDouble() * 0.5);
+    final bend = (rnd.nextDouble() - 0.5) * w * 0.5;
+    final bw = 4 + rnd.nextDouble() * 4;
+    final p = Path()
+      ..moveTo(x0 - bw, h - 2)
+      ..quadraticBezierTo(x0 + bend * 0.3, h - len * 0.6, x0 + bend, h - len)
+      ..quadraticBezierTo(x0 + bend * 0.3 + bw * 0.5, h - len * 0.6, x0 + bw, h - 2)
+      ..close();
+    blade.shader = ui.Gradient.linear(Offset(0, h), Offset(0, h - len), [
+      Color.lerp(base, const Color(0xff000000), 0.35)!,
+      base,
+      tip,
+    ], const [0, 0.4, 1]);
+    c.drawPath(p, blade);
+  }
+  if (v == 1) {
+    for (var i = 0; i < 4; i++) {
+      final x = w * 0.25 + rnd.nextDouble() * w * 0.5, y = h * (0.2 + rnd.nextDouble() * 0.3);
+      c.drawCircle(Offset(x, y), 5, _fill(const Color(0xfffff3f3)));
+      c.drawCircle(Offset(x, y), 2, _fill(const Color(0xffffc21a)));
+    }
+  }
+}
+
+void _tower(Canvas c, double w, double h) {
+  final p = Path()
+    ..moveTo(w / 2 - 7, 0)
+    ..lineTo(w / 2 + 7, 0)
+    ..lineTo(w / 2 + 16, h - 4)
+    ..lineTo(w / 2 - 16, h - 4)
+    ..close();
+  c.drawPath(
+    p,
+    _grad(Offset(w / 2 - 16, 0), Offset(w / 2 + 16, 0), const [
+      Color(0xffffffff),
+      Color(0xffe9edf2),
+      Color(0xffa9b2bf),
+    ], const [0, 0.45, 1]),
+  );
+  // Nacelle.
+  c.drawRRect(
+    RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(w / 2, 6), width: 30, height: 14), const Radius.circular(6)),
+    _fill(const Color(0xffdfe4ea)),
+  );
+}
+
+void _blades(Canvas c, double w, double h) {
+  final cx = w / 2, cy = h / 2;
+  for (var i = 0; i < 3; i++) {
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(i * math.pi * 2 / 3);
+    final p = Path()
+      ..moveTo(-5, 0)
+      ..quadraticBezierTo(-12, -h * 0.18, -4, -h * 0.48)
+      ..lineTo(2, -h * 0.49)
+      ..quadraticBezierTo(8, -h * 0.25, 6, 0)
+      ..close();
+    c.drawPath(p, _grad(const Offset(-10, 0), const Offset(8, 0), const [Color(0xffc3cad4), Color(0xfffafbfc)]));
+    c.restore();
+  }
+  c.drawCircle(Offset(cx, cy), 10, _radial(Offset(cx - 3, cy - 3), 12, const [Color(0xffffffff), Color(0xffaab3bf)]));
+}
+
+void _barn(Canvas c, double w, double h) {
+  _shadow(c, w / 2, h - 8, w * 0.52, 14, 0.35);
+  final wallTop = h * 0.42;
+  // Gable roof.
+  final roof = Path()
+    ..moveTo(10, wallTop + 6)
+    ..lineTo(w * 0.28, h * 0.12)
+    ..lineTo(w * 0.72, h * 0.12)
+    ..lineTo(w - 10, wallTop + 6)
+    ..close();
+  c.drawPath(roof, _grad(Offset(0, h * 0.1), Offset(0, wallTop), const [Color(0xff5b5f68), Color(0xff2f3238)]));
+  // Walls.
+  final wall = Rect.fromLTRB(26, wallTop, w - 26, h - 8);
+  c.drawRect(
+    wall,
+    _grad(Offset(26, 0), Offset(w - 26, 0), const [Color(0xffc8452f), Color(0xffa8321f), Color(0xff7a2216)], const [
+      0,
+      0.5,
+      1,
+    ]),
+  );
+  // Planks.
+  final plank = Paint()
+    ..color = const Color(0x22000000)
+    ..strokeWidth = 2;
+  for (var x = 40.0; x < w - 26; x += 16) {
+    c.drawLine(Offset(x, wallTop), Offset(x, h - 8), plank);
+  }
+  // Big door with white X frame.
+  final door = Rect.fromCenter(center: Offset(w / 2, h - 8 - (h * 0.32) / 2), width: w * 0.3, height: h * 0.32);
+  c.drawRect(door, _fill(const Color(0xff8e2919)));
+  final trim = Paint()
+    ..color = const Color(0xfff4efe6)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 6;
+  c.drawRect(door, trim);
+  c.drawLine(door.topLeft, door.bottomRight, trim);
+  c.drawLine(door.topRight, door.bottomLeft, trim);
+  // Loft window.
+  final win = Rect.fromCenter(center: Offset(w / 2, wallTop + 18), width: 46, height: 32);
+  c.drawRect(win, _fill(const Color(0xff2a1a14)));
+  c.drawRect(win, trim..strokeWidth = 5);
+  // Silo.
+  final silo = Rect.fromLTWH(w - 70, h * 0.06, 52, h * 0.94 - 8);
+  c.drawRect(
+    silo,
+    _grad(Offset(silo.left, 0), Offset(silo.right, 0), const [Color(0xffe6e9ee), Color(0xffb0b7c2), Color(0xff7d8592)], const [
+      0,
+      0.45,
+      1,
+    ]),
+  );
+  c.drawOval(
+    Rect.fromLTWH(silo.left, silo.top - 20, silo.width, 40),
+    _grad(Offset(0, silo.top - 20), Offset(0, silo.top + 20), const [Color(0xffd5dae1), Color(0xff8a929e)]),
+  );
+}
+
+void _poplar(Canvas c, double w, double h) {
+  _shadow(c, w / 2, h - 8, w * 0.4, 9);
+  c.drawRect(Rect.fromLTWH(w / 2 - 6, h - 60, 12, 54), _fill(const Color(0xff4d3420)));
+  final p = Path()
+    ..moveTo(w / 2, 4)
+    ..cubicTo(w * 0.98, h * 0.3, w * 0.9, h * 0.75, w / 2, h - 46)
+    ..cubicTo(w * 0.1, h * 0.75, w * 0.02, h * 0.3, w / 2, 4)
+    ..close();
+  c.drawPath(
+    p,
+    _grad(const Offset(0, 0), Offset(w, 0), const [Color(0xff6fb553), Color(0xff2f7a36), Color(0xff16441f)], const [
+      0,
+      0.45,
+      1,
+    ]),
+  );
+  _leafSpeckle(c, p, Rect.fromLTWH(0, 0, w, h - 46), 7, 60);
+}
+
+void _birch(Canvas c, double w, double h) {
+  _shadow(c, w / 2, h - 8, w * 0.36, 10);
+  // White trunk with black marks.
+  final trunk = Rect.fromLTWH(w / 2 - 9, h * 0.3, 18, h * 0.7 - 6);
+  c.drawRect(trunk, _grad(Offset(trunk.left, 0), Offset(trunk.right, 0), const [Color(0xfff4f2ea), Color(0xffbdb8ab)]));
+  final rnd = math.Random(4);
+  for (var i = 0; i < 9; i++) {
+    final y = trunk.top + rnd.nextDouble() * trunk.height;
+    c.drawRect(Rect.fromLTWH(trunk.left + rnd.nextDouble() * 8, y, 6 + rnd.nextDouble() * 8, 3), _fill(const Color(0xff2a2a2a)));
+  }
+  final blobs = <List<double>>[
+    [0.5, 0.2, 0.3],
+    [0.3, 0.34, 0.24],
+    [0.7, 0.32, 0.25],
+    [0.5, 0.42, 0.26],
+    [0.4, 0.12, 0.18],
+  ];
+  for (final bl in blobs) {
+    final cx = bl[0] * w, cy = bl[1] * h, rr = bl[2] * w;
+    c.drawCircle(
+      Offset(cx, cy),
+      rr,
+      _radial(Offset(cx - rr * 0.35, cy - rr * 0.4), rr * 1.4, const [
+        Color(0xffd6ef8a),
+        Color(0xff86bd4a),
+        Color(0xff3f7a2c),
+      ], const [0, 0.5, 1]),
+    );
+  }
+}
+
+/// Small light and dark dots inside [clip] so foliage reads as leaves.
+void _leafSpeckle(Canvas c, Path clip, Rect area, int seed, int n) {
+  final rnd = math.Random(seed);
+  c.save();
+  c.clipPath(clip);
+  final light = Paint()..color = const Color(0x40e8ffb0);
+  final dark = Paint()..color = const Color(0x33001a00);
+  for (var i = 0; i < n; i++) {
+    final x = area.left + rnd.nextDouble() * area.width;
+    final y = area.top + rnd.nextDouble() * area.height;
+    final r = 3 + rnd.nextDouble() * 5;
+    // Lit on the left/top, shadowed to the right/bottom.
+    final lit = (x - area.left) / area.width + (y - area.top) / area.height * 0.5 < 0.7;
+    c.drawCircle(Offset(x, y), r, lit ? light : dark);
+  }
+  c.restore();
+}
+
+void _sparkle(Canvas c, double w, double h) {
+  final cx = w / 2, cy = h / 2;
+  c.drawCircle(Offset(cx, cy), w * 0.22, _radial(Offset(cx, cy), w * 0.22, const [Color(0xffffffff), Color(0x00ffffff)]));
+  final p = Path();
+  for (var i = 0; i < 8; i++) {
+    final r = i.isEven ? w * 0.5 : w * 0.06;
+    final a = i * math.pi / 4;
+    final o = Offset(cx + math.cos(a) * r, cy + math.sin(a) * r);
+    if (i == 0) {
+      p.moveTo(o.dx, o.dy);
+    } else {
+      p.lineTo(o.dx, o.dy);
+    }
+  }
+  p.close();
+  c.drawPath(p, _radial(Offset(cx, cy), w * 0.5, const [Color(0xffffffff), Color(0xccffffff), Color(0x00ffffff)], const [0, 0.3, 1]));
 }

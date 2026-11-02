@@ -1,4 +1,4 @@
-İLERLEME: %92
+İLERLEME: %93
 
 Pedal Escape: Bike Run — Geliştirme Planı ve İlerleme
 ======================================================
@@ -104,6 +104,24 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
 
 25) [ ] Gerçek cihazda test: eski ve yeni telefonda FPS / RAM ölçümü,
     oyun dengesi (hız, engel sıklığı, fırtına hızı) ince ayarı.
+
+26) [x] Grafik yükseltmesi (Orta ve Yüksek kalitede açık, Düşük'te kapalı):
+    - Yolda ve çimde hareket eden doku (asfalt pürüzü, çim lifleri; tek
+      256x256 prosedürel doku, ~256 KB), tekerlek izleri, şerit ortasında
+      yağ izi, kirli kenarlar, yamalı asfalt parçaları, eğimli kaldırım taşı.
+    - Yokuşlarda eğime göre ışık, dağlarda güneşe bakan/gölgede kalan yüzler,
+      ufukta orman silueti ve sis bandı.
+    - Güneş ışınları (god rays), lens parlaması, gölgeli kümülüs bulutları
+      (3 çeşit, uzak/yakın katman), parıldayan yıldızlar, ay halesi.
+    - Ormanda metal bariyer, çayırda ahşap çit (tepeler arkasında doğru gizlenir),
+      gece bariyer reflektörleri.
+    - Yeni sahne: rüzgâr türbinleri (dönen pervane), ahır + silo, kavak yolu,
+      huş ağacı, yol kenarı çim öbekleri, ağaçlarda yaprak dokusu.
+    - Gece: ateş böcekleri, yumuşak far ışığı, yanıp sönen arka LED,
+      ıslak yolda lamba ve stop lambası yansımaları (fırtına yaklaştıkça artar).
+    - Bisikletçi: pedala göre gövde salınımı, kask parlaması, forma cepleri,
+      sele çantası, sahne ışığına göre renk tonu (gece/gün batımı/fırtına).
+    - Arabalar: yan aynalar, egzoz, gövde parlaması; altınlarda parıltı.
 
 ------------------------------------------------------------
 YAPILANLARIN ÖZETİ (teknik)

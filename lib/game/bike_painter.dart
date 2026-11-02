@@ -75,6 +75,19 @@ class BikePainter {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 0.035;
   final Paint _number = Paint()..color = const Color(0xffffffff);
+  final Paint _torsoShade = Paint()
+    ..shader = ui.Gradient.linear(
+      const Offset(-0.24, 0),
+      const Offset(0.24, 0),
+      const [Color(0x10ffffff), Color(0x00000000), Color(0x00000000), Color(0x55000000)],
+      const [0, 0.3, 0.6, 1],
+    );
+  final Paint _pocket = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.012
+    ..color = const Color(0x40000000);
+  final Paint _spec = Paint()..color = const Color(0x88ffffff);
+  final Paint _bag = Paint()..color = const Color(0xff2a2c31);
 
   final Path _path = Path();
 
@@ -142,9 +155,12 @@ class BikePainter {
     c.rotate(lean);
 
     final d = duck;
+    // The upper body rocks gently with every pedal stroke.
+    final bob = crash > 0 ? 0.0 : math.sin(pedal * 2) * 0.012;
+    final rock = crash > 0 ? 0.0 : math.sin(pedal) * 0.018;
     final hipY = -1.0 + d * 0.06;
-    final shoulderY = -1.47 + d * 0.2;
-    final headY = -1.66 + d * 0.27;
+    final shoulderY = -1.47 + d * 0.2 + bob;
+    final headY = -1.66 + d * 0.27 + bob;
 
     // --- front wheel (far, partly hidden) and handlebars
     final steer = -lean * 0.08;
@@ -193,8 +209,9 @@ class BikePainter {
       );
     }
 
-    // --- seat
+    // --- seat + saddle bag
     c.drawRRect(RRect.fromLTRBR(-0.1, hipY - 0.01, 0.1, hipY + 0.04, const Radius.circular(0.03)), _dark);
+    c.drawRRect(RRect.fromLTRBR(-0.06, hipY + 0.04, 0.06, hipY + 0.12, const Radius.circular(0.025)), _bag);
 
     // --- shorts
     c.drawRRect(RRect.fromLTRBR(-0.19, hipY - 0.13, 0.19, hipY + 0.03, const Radius.circular(0.08)), _shorts);
@@ -202,7 +219,7 @@ class BikePainter {
     // --- arms (behind torso edges)
     final sway = math.sin(pedal) * 0.012;
     for (var side = -1; side <= 1; side += 2) {
-      final sh = Offset(side * 0.2, shoulderY + 0.06);
+      final sh = Offset(side * 0.2 + rock * 0.5, shoulderY + 0.06);
       final hand = Offset(side * 0.29 + steer, -1.17 + d * 0.04);
       final elbow = Offset(side * (0.3 + d * 0.05), (sh.dy + hand.dy) * 0.5 + 0.02 + side * sway);
       c.drawLine(elbow, hand, _arm);
@@ -210,7 +227,9 @@ class BikePainter {
       c.drawCircle(hand, 0.045, _dark); // gloves
     }
 
-    // --- torso / back
+    // --- torso / back (rocks around the hips)
+    c.save();
+    c.translate(rock * 0.5, 0);
     _path
       ..reset()
       ..moveTo(-0.17, hipY - 0.08)
@@ -220,6 +239,12 @@ class BikePainter {
       ..quadraticBezierTo(0, hipY - 0.02, -0.17, hipY - 0.08)
       ..close();
     c.drawPath(_path, _torso);
+    c.drawPath(_path, _torsoShade);
+    // Jersey back pockets.
+    final py = hipY - 0.17;
+    c.drawLine(Offset(-0.17, py), Offset(0.17, py), _pocket);
+    c.drawLine(Offset(-0.06, py), Offset(-0.06, hipY - 0.07), _pocket);
+    c.drawLine(Offset(0.06, py), Offset(0.06, hipY - 0.07), _pocket);
     // Accent stripe and number panel.
     final my = shoulderY + (hipY - shoulderY) * 0.42;
     c.drawRect(Rect.fromLTRB(-0.215, my - 0.025, 0.215, my + 0.025), _stripe);
@@ -242,6 +267,9 @@ class BikePainter {
       );
     }
     c.drawRect(Rect.fromLTRB(-0.12, headY + 0.03, 0.12, headY + 0.055), _stripe);
+    // Specular highlight on the helmet shell.
+    c.drawOval(Rect.fromLTRB(-0.085, headY - 0.125, -0.01, headY - 0.085), _spec);
+    c.restore();
 
     c.restore();
 

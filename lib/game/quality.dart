@@ -13,6 +13,8 @@ class Quality {
     required this.shadows,
     required this.mountainColumns,
     required this.atlasScale,
+    required this.textures,
+    required this.detail,
   });
 
   final String name;
@@ -42,6 +44,13 @@ class Quality {
   /// Texture resolution multiplier of the sprite atlas.
   final double atlasScale;
 
+  /// Moving grain texture on the asphalt and grass (one tiny tiled image).
+  final bool textures;
+
+  /// Extra eye candy: road wear profile, grass tufts, fireflies, lens flare,
+  /// god rays, wet reflections.
+  final bool detail;
+
   static const low = Quality(
     name: 'Düşük',
     segments: 95,
@@ -53,6 +62,8 @@ class Quality {
     shadows: false,
     mountainColumns: 32,
     atlasScale: 0.5,
+    textures: false,
+    detail: false,
   );
 
   static const medium = Quality(
@@ -66,6 +77,8 @@ class Quality {
     shadows: false,
     mountainColumns: 48,
     atlasScale: 0.7,
+    textures: true,
+    detail: true,
   );
 
   static const high = Quality(
@@ -79,6 +92,8 @@ class Quality {
     shadows: true,
     mountainColumns: 72,
     atlasScale: 0.9,
+    textures: true,
+    detail: true,
   );
 
   static const List<Quality> levels = [low, medium, high];
