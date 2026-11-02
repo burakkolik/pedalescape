@@ -1,4 +1,4 @@
-İLERLEME: %40
+İLERLEME: %65
 
 Pedal Escape: Bike Run — Geliştirme Planı ve İlerleme
 ======================================================
@@ -39,7 +39,7 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
    - Şerit değiştirirken yana yatma, zıplarken havada pozisyon, eğilme (duck).
    - Yerde yumuşak gölge.
 
-6) [~] Kontroller
+6) [x] Kontroller
    - Sola/sağa kaydırma: şerit değiştirme (yumuşak geçiş).
    - Yukarı kaydırma: zıplama (bariyerlerin üstünden).
    - Aşağı kaydırma: eğilme/hızlı iniş (alçak tabelaların altından).
@@ -66,12 +66,12 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
     - Ekran sarsıntısı, hız çizgileri, turbo parlaması, vinyet.
     - Kaliteye göre efekt miktarı otomatik azalır.
 
-12) [ ] HUD (skor, mesafe, altın, aktif güç-artırıcı süre çubukları, fırtına mesafesi).
+12) [x] HUD (skor, mesafe, altın, aktif güç-artırıcı süre çubukları, fırtına mesafesi).
 
-13) [ ] Menüler: ana menü (animasyonlu arka plan), duraklatma, oyun sonu,
+13) [x] Menüler: ana menü (animasyonlu arka plan), duraklatma, oyun sonu,
     ayarlar (grafik kalitesi, titreşim), nasıl oynanır.
 
-14) [ ] Kayıt: en yüksek skor, toplam altın, ayarlar (shared_preferences — küçük paket).
+14) [x] Kayıt: en yüksek skor, toplam altın, ayarlar (shared_preferences — küçük paket).
 
 15) [x] Performans / kalite seviyeleri
     - Düşük / Orta / Yüksek / Otomatik grafik modu.
@@ -84,14 +84,14 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
     - Uygulama arka plana gidince oyun otomatik duraklar, döngü durur.
     - Listeler sabit kapasiteli; oyun süresince bellek büyümez.
 
-17) [ ] Haptik (titreşim) geri bildirim — ayarlardan kapatılabilir.
+17) [x] Haptik (titreşim) geri bildirim — ayarlardan kapatılabilir.
 
 18) [ ] Android ayarları: dikey ekran kilidi, tam ekran (immersive),
     uygulama adı "Pedal Escape", uygulama ikonu.
 
-19) [ ] Mağaza: altınla bisiklet/forma renkleri satın alma.
+19) [x] Mağaza: altınla bisiklet/forma renkleri satın alma.
 
-20) [ ] Görevler / başarımlar (ör. "1000 m git", "50 altın topla").
+20) [x] Görevler / başarımlar (ör. "1000 m git", "50 altın topla").
 
 21) [ ] Testler (birim testleri: projeksiyon, çarpışma, havuz, skor) +
     flutter analyze temiz.
