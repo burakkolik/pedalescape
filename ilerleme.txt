@@ -1,4 +1,4 @@
-İLERLEME: %88
+İLERLEME: %92
 
 Pedal Escape: Bike Run — Geliştirme Planı ve İlerleme
 ======================================================
@@ -87,7 +87,7 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
 17) [x] Haptik (titreşim) geri bildirim — ayarlardan kapatılabilir.
 
 18) [x] Android ayarları: dikey ekran kilidi, tam ekran (immersive),
-    uygulama adı "Pedal Escape". (Özel uygulama ikonu henüz yok -> madde 24.)
+    uygulama adı "Pedal Escape", uygulama ikonu (madde 24).
 
 19) [x] Mağaza: altınla bisiklet/forma renkleri satın alma.
 
@@ -100,7 +100,7 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
 
 23) [ ] (İleride) Ses efektleri ve müzik.
 
-24) [ ] Özel uygulama ikonu ve açılış ekranı (şu an Flutter varsayılanı).
+24) [x] Özel uygulama ikonu (oyunun kendi çiziminden üretildi: tool/icon_gen_test.dart).
 
 25) [ ] Gerçek cihazda test: eski ve yeni telefonda FPS / RAM ölçümü,
     oyun dengesi (hız, engel sıklığı, fırtına hızı) ince ayarı.
