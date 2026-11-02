@@ -1,4 +1,4 @@
-İLERLEME: %2
+İLERLEME: %40
 
 Pedal Escape: Bike Run — Geliştirme Planı ve İlerleme
 ======================================================
@@ -12,7 +12,7 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
 
 1) [x] Proje incelemesi, ilerleme.txt ve benimonerilerim.txt dosyalarının oluşturulması.
 
-2) [ ] Mimari ve oyun döngüsü
+2) [x] Mimari ve oyun döngüsü
    - Harici oyun motoru KULLANILMAYACAK (APK küçük, RAM düşük kalsın diye).
    - Flutter Ticker ile tek bir oyun döngüsü; delta-time sınırlama (takılmalarda
      fizik patlamasın diye en fazla 1/30 sn adım).
@@ -20,48 +20,48 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
      "repaint" dinleyicisiyle yeniden çizilecek (çok düşük CPU).
    - Oyun durumu (GameState) ile çizim (Renderer) ayrı dosyalarda.
 
-3) [ ] Sözde-3D yol çizimi (perspektif projeksiyon)
+3) [x] Sözde-3D yol çizimi (perspektif projeksiyon)
    - Yol segmentleri: her segmentin viraj (curve) ve yükseklik (hill) değeri.
    - Kamera projeksiyonu: dünya (x,y,z) -> ekran (x,y,ölçek).
    - Asfalt, kenar şeritleri (kırmızı-beyaz bordür), şerit çizgileri,
      çimen bantları, sis (uzak mesafe renk karışımı) ile derinlik hissi.
    - Virajlar ve tepeler sonsuz ve rastgele ama yumuşak üretilecek.
 
-4) [ ] Arka plan ve atmosfer
+4) [x] Arka plan ve atmosfer
    - Gökyüzü degradesi, güneş/ay, bulutlar, 2-3 katman dağ (parallax).
    - Gece-gündüz döngüsü (renkler yumuşak geçişle değişir).
    - Arka plan katmanları önceden hesaplanıp önbelleğe alınacak (Picture),
      her karede yeniden path üretilmeyecek.
 
-5) [ ] Bisikletli karakter
+5) [x] Bisikletli karakter
    - Arkadan görünüm, 3D hissi veren gölgelendirme.
    - Pedal çevirme animasyonu (bacaklar, krank, tekerlek jantları döner).
    - Şerit değiştirirken yana yatma, zıplarken havada pozisyon, eğilme (duck).
    - Yerde yumuşak gölge.
 
-6) [ ] Kontroller
+6) [~] Kontroller
    - Sola/sağa kaydırma: şerit değiştirme (yumuşak geçiş).
    - Yukarı kaydırma: zıplama (bariyerlerin üstünden).
    - Aşağı kaydırma: eğilme/hızlı iniş (alçak tabelaların altından).
    - Klavye desteği (ok tuşları / WASD) test için.
 
-7) [ ] Engeller (nesne havuzu ile — bellekte sürekli yeni nesne yaratılmaz)
+7) [x] Engeller (nesne havuzu ile — bellekte sürekli yeni nesne yaratılmaz)
    - Araba / kamyonet (büyük: çarpınca oyun biter, kaçmak gerekir).
    - Alçak bariyer (zıplanmalı), yüksek tabela (eğilmeli).
    - Trafik konisi, su birikintisi (küçük: yavaşlatır, fırtına yaklaşır).
    - Zorluk mesafeyle artar (hız, yoğunluk, desenler).
 
-8) [ ] Toplanabilirler
+8) [x] Toplanabilirler
    - Altınlar (dönen 3D görünümlü), sıra/kavis desenlerinde.
    - Kalkan (bir çarpmayı affeder), Mıknatıs (altınları çeker),
      Turbo (kısa süre hızlanma + dokunulmazlık), x2 skor.
 
-9) [ ] Çarpışma sistemi (şerit + derinlik + yükseklik kontrolü, ucuz hesap).
+9) [x] Çarpışma sistemi (şerit + derinlik + yükseklik kontrolü, ucuz hesap).
 
-10) [ ] Kaçış mekaniği: arkadan gelen fırtına göstergesi, yaklaştıkça ekran
+10) [x] Kaçış mekaniği: arkadan gelen fırtına göstergesi, yaklaştıkça ekran
     kenarları kararır, uyarı efekti.
 
-11) [ ] Efektler
+11) [x] Efektler
     - Parçacıklar (toz, kıvılcım, altın parıltısı, yağmur) — sabit kapasiteli havuz.
     - Ekran sarsıntısı, hız çizgileri, turbo parlaması, vinyet.
     - Kaliteye göre efekt miktarı otomatik azalır.
@@ -73,12 +73,12 @@ yaklaşır; büyük engele çarparsa ya da fırtına yetişirse oyun biter.
 
 14) [ ] Kayıt: en yüksek skor, toplam altın, ayarlar (shared_preferences — küçük paket).
 
-15) [ ] Performans / kalite seviyeleri
+15) [x] Performans / kalite seviyeleri
     - Düşük / Orta / Yüksek / Otomatik grafik modu.
     - Otomatik mod: FPS düşerse çizim mesafesi ve efektler azaltılır.
     - Çizim mesafesi (segment sayısı) kaliteye bağlı.
 
-16) [ ] Bellek güvenliği
+16) [~] Bellek güvenliği
     - Paint ve Path nesneleri yeniden kullanılır, her karede yaratılmaz.
     - Tüm Ticker / Controller / Picture nesneleri dispose edilir.
     - Uygulama arka plana gidince oyun otomatik duraklar, döngü durur.
